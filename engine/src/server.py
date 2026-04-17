@@ -55,14 +55,27 @@ async def list_tools() -> list[types.Tool]:
         # Scroll
         types.Tool(
             name="ghost_scroll",
-            description="Scroll the page. Directions: 'up', 'down', 'top', 'bottom'. Specify pixels for up/down.",
+            description="Smooth-scroll the page like a real user. Directions: 'up', 'down', 'top', 'bottom'. The video recorder will capture the animation.",
             inputSchema={
                 "type": "object",
                 "properties": {
                     "direction": {"type": "string", "enum": ["up", "down", "top", "bottom"]},
-                    "pixels": {"type": "integer", "description": "Pixels to scroll (default 500)."}
+                    "pixels": {"type": "integer", "description": "Pixels to scroll (default 500)."},
+                    "smooth": {"type": "boolean", "description": "Smooth animated scroll (default true). Set false for instant jump."}
                 },
                 "required": ["direction"]
+            }
+        ),
+        # Cinematic Scroll
+        types.Tool(
+            name="ghost_cinematic_scroll",
+            description="Performs a slow, cinematic top-to-bottom scroll of the ENTIRE page. Takes a viewport screenshot at every stop. The video recorder captures the whole journey as a beautiful animation. Use this for full-page audits.",
+            inputSchema={
+                "type": "object",
+                "properties": {
+                    "step_px": {"type": "integer", "description": "Pixels per scroll step (default 300)."},
+                    "pause_ms": {"type": "integer", "description": "Milliseconds to pause at each stop (default 800)."}
+                }
             }
         ),
         # Drag
@@ -237,9 +250,21 @@ async def call_tool(name: str, arguments: dict) -> list[types.TextContent]:
 
     elif name == "ghost_scroll":
         result = await browser_manager.scroll_page(
-            arguments["direction"], arguments.get("pixels", 500)
+            arguments["direction"], arguments.get("pixels", 500), arguments.get("smooth", True)
         )
         return [types.TextContent(type="text", text=result)]
+
+    elif name == "ghost_cinematic_scroll":
+        result = await browser_manager.cinematic_scroll(
+            arguments.get("step_px", 300), arguments.get("pause_ms", 800)
+        )
+        if result["status"] == "error":
+            return [types.TextContent(type="text", text=result["message"])]
+        text = f"{result['message']}\nPage Height: {result['page_height']}px\nSnapshots:\n"
+        text += "\n".join([f"  - {s}" for s in result["snapshots"][:20]])
+        if len(result["snapshots"]) > 20:
+            text += f"\n  ... and {len(result['snapshots']) - 20} more"
+        return [types.TextContent(type="text", text=text)]
 
     elif name == "ghost_drag":
         result = await browser_manager.drag_to(arguments["source_id"], arguments["target_id"])

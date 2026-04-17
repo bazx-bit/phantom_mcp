@@ -135,7 +135,7 @@ class GhostBrowserManager:
             animated_count = result.get("animatedCount", 0)
 
             screenshot_path = os.path.join(self.screenshots_dir, 'latest_snapshot.png')
-            await self.page.screenshot(path=screenshot_path, full_page=True)
+            await self.page.screenshot(path=screenshot_path, full_page=False)
 
             return {
                 "status": "success",
@@ -202,28 +202,85 @@ class GhostBrowserManager:
         except Exception as e:
             return {"status": "error", "message": f"Action '{action}' on {ghost_id} failed: {str(e)}"}
 
-    # ─── SCROLLING ────────────────────────────────────────────────
+    # ─── SCROLLING (SMOOTH ANIMATION) ──────────────────────────────
 
-    async def scroll_page(self, direction: str = "down", pixels: int = 500) -> str:
-        """Scroll the page in a direction by a number of pixels."""
+    async def scroll_page(self, direction: str = "down", pixels: int = 500, smooth: bool = True) -> str:
+        """Scroll the page with real smooth animation so the video captures motion."""
         try:
-            if direction == "down":
-                await self.page.evaluate(f"window.scrollBy(0, {pixels})")
-            elif direction == "up":
-                await self.page.evaluate(f"window.scrollBy(0, -{pixels})")
-            elif direction == "bottom":
-                await self.page.evaluate("window.scrollTo(0, document.body.scrollHeight)")
-            elif direction == "top":
-                await self.page.evaluate("window.scrollTo(0, 0)")
+            if smooth:
+                # Use CSS smooth scroll behavior for natural-looking motion
+                if direction == "down":
+                    await self.page.evaluate(f"window.scrollBy({{top: {pixels}, behavior: 'smooth'}})")
+                elif direction == "up":
+                    await self.page.evaluate(f"window.scrollBy({{top: -{pixels}, behavior: 'smooth'}})")
+                elif direction == "bottom":
+                    await self.page.evaluate("window.scrollTo({top: document.body.scrollHeight, behavior: 'smooth'})")
+                elif direction == "top":
+                    await self.page.evaluate("window.scrollTo({top: 0, behavior: 'smooth'})")
+                else:
+                    return f"Unknown direction: {direction}. Use 'up', 'down', 'top', 'bottom'."
+                # Wait for smooth scroll animation to finish + lazy content
+                await asyncio.sleep(1.5)
             else:
-                return f"Unknown direction: {direction}. Use 'up', 'down', 'top', 'bottom'."
+                # Instant jump (legacy)
+                if direction == "down":
+                    await self.page.evaluate(f"window.scrollBy(0, {pixels})")
+                elif direction == "up":
+                    await self.page.evaluate(f"window.scrollBy(0, -{pixels})")
+                elif direction == "bottom":
+                    await self.page.evaluate("window.scrollTo(0, document.body.scrollHeight)")
+                elif direction == "top":
+                    await self.page.evaluate("window.scrollTo(0, 0)")
+                else:
+                    return f"Unknown direction: {direction}."
+                await asyncio.sleep(0.5)
 
-            await asyncio.sleep(1)  # Wait for lazy-loaded content/animations
             scroll_y = await self.page.evaluate("window.scrollY")
             page_height = await self.page.evaluate("document.body.scrollHeight")
-            return f"Scrolled {direction} by {pixels}px. Current position: {scroll_y}/{page_height}px."
+            return f"Scrolled {direction} by {pixels}px. Position: {scroll_y}/{page_height}px."
         except Exception as e:
             return f"Scroll failed: {str(e)}"
+
+    async def cinematic_scroll(self, step_px: int = 300, pause_ms: int = 800) -> Dict[str, Any]:
+        """
+        Performs a slow, cinematic top-to-bottom scroll of the entire page.
+        Takes a viewport screenshot at every stop. The video recorder captures
+        the entire journey as a smooth animation.
+        Returns paths to all captured viewport screenshots.
+        """
+        try:
+            # Go to top first
+            await self.page.evaluate("window.scrollTo({top: 0, behavior: 'smooth'})")
+            await asyncio.sleep(1)
+
+            page_height = await self.page.evaluate("document.body.scrollHeight")
+            viewport_h = await self.page.evaluate("window.innerHeight")
+            current = 0
+            frame_idx = 0
+            snapshots = []
+
+            while current < page_height - viewport_h:
+                # Smooth scroll one step
+                await self.page.evaluate(f"window.scrollBy({{top: {step_px}, behavior: 'smooth'}})")
+                await asyncio.sleep(pause_ms / 1000.0)
+
+                # Take a VIEWPORT screenshot (what a real user sees)
+                path = os.path.join(self.screenshots_dir, f"cinematic_{frame_idx}.png")
+                await self.page.screenshot(path=path, full_page=False)
+                snapshots.append(path)
+
+                current += step_px
+                frame_idx += 1
+
+            return {
+                "status": "success",
+                "frames": len(snapshots),
+                "snapshots": snapshots,
+                "page_height": page_height,
+                "message": f"Cinematic scroll complete. {len(snapshots)} viewport snapshots captured."
+            }
+        except Exception as e:
+            return {"status": "error", "message": f"Cinematic scroll failed: {str(e)}"}
 
     # ─── DRAG AND DROP ────────────────────────────────────────────
 
@@ -255,8 +312,12 @@ class GhostBrowserManager:
 
     # ─── SCREENSHOT ───────────────────────────────────────────────
 
-    async def take_screenshot(self, name: str = "capture", full_page: bool = True) -> str:
-        """Take a named screenshot and return the path."""
+    async def take_screenshot(self, name: str = "capture", full_page: bool = False) -> str:
+        """
+        Take a named screenshot and return the path.
+        Defaults to VIEWPORT-only (what a real user sees).
+        Set full_page=True only for sitemap-style captures.
+        """
         try:
             path = os.path.join(self.screenshots_dir, f"{name}.png")
             await self.page.screenshot(path=path, full_page=full_page)
