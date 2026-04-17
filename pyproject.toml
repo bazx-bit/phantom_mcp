@@ -1,0 +1,26 @@
+[project]
+name = "site-ghost"
+version = "1.0.0"
+description = "Agentic UI/UX visual auditor with precision DOM mapping and live Playwright video recording."
+authors = [{name = "Raj", email = "rajbazx@gmail.com"}]
+requires-python = ">=3.10"
+dependencies = [
+    "mcp",
+    "playwright",
+    "Pillow",
+    "nest-asyncio"
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest",
+    "black",
+    "ruff"
+]
+
+[project.scripts]
+site-ghost = "engine.src.server:main"
+
+[build-system]
+requires = ["setuptools"]
+build-backend = "setuptools.build_meta"
