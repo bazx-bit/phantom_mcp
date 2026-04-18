@@ -38,42 +38,53 @@ Every interaction is automatically **video-recorded** as `.webm` snippets. The A
 
 ## ⚡ Quick Start
 
-### Option 1: Setup Script
-```bash
-# Windows
-setup.bat
+Phantom MCP is distributed as an executable Python package. You can install and run it natively on **Windows, macOS, and Linux** using either `uv` or `pip`.
 
-# macOS / Linux
-chmod +x setup.sh && ./setup.sh
-```
+### 1. The Zero-Install Way (Recommended)
+If you have [`uv`](https://docs.astral.sh/uv/) installed (the modern, ultra-fast Python package manager used by Claude/Cursor), you don't even need to download the repository. Just add this to your AI config:
 
-### Option 2: Manual
-```bash
-pip install mcp playwright Pillow nest-asyncio
-playwright install chromium
-```
-
-### Connect to your AI
-
-**Gemini CLI:**
-```bash
-gemini mcp add site-ghost -- python "C:\path\to\site-ghost\engine\src\server.py"
-```
-
-**Cursor / Claude Desktop** — Add to your MCP config:
+**Cursor / Claude Desktop Config:**
 ```json
 {
   "mcpServers": {
-    "site-ghost": {
-      "command": "python",
-      "args": ["C:\\path\\to\\site-ghost\\engine\\src\\server.py"]
+    "phantom-mcp": {
+      "command": "uvx",
+      "args": ["phantom-mcp"]
+    }
+  }
+}
+```
+
+### 2. The Global Pip Install
+If you prefer to install it permanently on your system so the command `phantom-mcp` is globally available everywhere:
+
+```bash
+# Windows / macOS / Linux
+pip install git+https://github.com/bazx-bit/phantom_mcp.git
+playwright install chromium
+```
+
+Then add this to your AI:
+
+**Gemini CLI:**
+```bash
+gemini mcp add phantom-mcp -- phantom-mcp
+```
+
+**Cursor / Claude Desktop Config:**
+```json
+{
+  "mcpServers": {
+    "phantom-mcp": {
+      "command": "phantom-mcp",
+      "args": []
     }
   }
 }
 ```
 
 Then just ask your AI:
-> "Use Site-Ghost to audit https://example.com for design quality"
+> "Assume the Visual Forensics Analyst persona and audit https://example.com for design quality."
 
 ---
 
