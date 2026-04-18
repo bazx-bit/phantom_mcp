@@ -46,10 +46,25 @@ class GhostBrowserManager:
 
     # ─── LIFECYCLE ────────────────────────────────────────────────
 
+    def _cleanup_old_files(self):
+        """Wipe old screenshots and videos from previous sessions to save disk space."""
+        for d in [self.screenshots_dir, self.recordings_dir, self.vision_dir]:
+            if os.path.exists(d):
+                for filename in os.listdir(d):
+                    file_path = os.path.join(d, filename)
+                    try:
+                        if os.path.isfile(file_path):
+                            os.unlink(file_path)
+                    except Exception:
+                        pass
+
     async def initialize(self):
         """Start the persistent Playwright daemon with video recording enabled."""
         if self.playwright:
             return  # Already running
+            
+        self._cleanup_old_files()
+        
         self.playwright = await async_playwright().start()
         self.browser = await self.playwright.chromium.launch(
             headless=True,
