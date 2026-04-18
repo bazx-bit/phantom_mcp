@@ -490,8 +490,21 @@ class GhostBrowserManager:
                 await self.page.evaluate(f"window.scrollBy({{top: {step_px}, behavior: 'smooth'}})")
                 await asyncio.sleep(pause_ms / 1000.0)
 
+                # Wait for local lazy-loaded images/fonts to paint
+                await self.page.evaluate("""() => {
+                    return Promise.all([
+                        document.fonts.ready,
+                        ...Array.from(document.querySelectorAll('img')).map(img => {
+                            if (img.complete) return Promise.resolve();
+                            return new Promise(resolve => { img.onload = img.onerror = resolve; });
+                        })
+                    ]);
+                }""")
+                await asyncio.sleep(0.2)
+
                 # ── Capture Screenshot ──
                 img_path = os.path.join(self.screenshots_dir, f"cinematic_{frame_idx}.png")
+
                 await self.page.screenshot(path=img_path, full_page=False)
 
                 # ── Build JSON Context Packet ──
@@ -620,6 +633,19 @@ class GhostBrowserManager:
         Set full_page=True only for sitemap-style captures.
         """
         try:
+            # High-precision wait: Ensure fonts and images are fully decoded
+            # to guarantee the AI sees exactly what is intended.
+            await self.page.evaluate("""() => {
+                return Promise.all([
+                    document.fonts.ready,
+                    ...Array.from(document.querySelectorAll('img')).map(img => {
+                        if (img.complete) return Promise.resolve();
+                        return new Promise(resolve => { img.onload = img.onerror = resolve; });
+                    })
+                ]);
+            }""")
+            await asyncio.sleep(0.3)  # Ensure compositor commits frame
+
             path = os.path.join(self.screenshots_dir, f"{name}.png")
             await self.page.screenshot(path=path, full_page=full_page)
             return path
@@ -724,8 +750,9 @@ class GhostBrowserManager:
                     filename = f"frame_{timestamp}_{frame_idx}.jpg"
                     path = os.path.join(self.vision_dir, filename)
                     
-                    # Take a low-quality JPEG for "compression/compaction"
-                    await self.page.screenshot(path=path, type="jpeg", quality=60)
+                    # Take a high-quality JPEG to preserve text readability
+                    await self.page.screenshot(path=path, type="jpeg", quality=85)
+
                     
                     self.vision_frames.append(path)
                     
