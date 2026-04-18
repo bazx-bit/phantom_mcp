@@ -349,9 +349,42 @@ class GhostBrowserManager:
             if await locator.count() == 0:
                 return {"status": "error", "message": f"Element {ghost_id} not found on page."}
 
-            await asyncio.sleep(0.5)  # Pre-action video buffer
+            # ── Activate Virtual Mouse Cursor ──
+            box = await locator.bounding_box()
+            if box:
+                target_x = box["x"] + box["width"] / 2
+                target_y = box["y"] + box["height"] / 2
+                await self.page.evaluate(
+                    """([x, y]) => {
+                        let cursor = document.getElementById('__ghost_cursor__');
+                        if (!cursor) {
+                            cursor = document.createElement('div');
+                            cursor.id = '__ghost_cursor__';
+                            // A red laser-pointer style cursor
+                            cursor.style.cssText = 'position:fixed; top:0; left:0; width:24px; height:24px; border-radius:50%; background:rgba(255, 0, 85, 0.4); border:2px solid #FF0055; z-index:2147483647; pointer-events:none; transition: all 0.4s cubic-bezier(0.25, 1, 0.5, 1); transform:translate(-50%, -50%); box-shadow: 0 0 10px rgba(255,0,85,0.8);';
+                            document.body.appendChild(cursor);
+                        }
+                        // Move cursor
+                        cursor.style.left = x + 'px';
+                        cursor.style.top = y + 'px';
+                    }""",
+                    [target_x, target_y]
+                )
+                await asyncio.sleep(0.5)  # Wait for cursor to travel there
 
             if action == "click":
+                # Simulate physical click ripple
+                await self.page.evaluate("""() => {
+                    const c = document.getElementById('__ghost_cursor__');
+                    if (c) {
+                        c.style.transform = 'translate(-50%, -50%) scale(0.5)';
+                        c.style.background = 'rgba(255, 255, 255, 0.8)';
+                        setTimeout(() => {
+                            c.style.transform = 'translate(-50%, -50%) scale(1)';
+                            c.style.background = 'rgba(255, 0, 85, 0.4)';
+                        }, 150);
+                    }
+                }""")
                 await locator.click(timeout=5000)
                 await asyncio.sleep(1.5)
                 return {"status": "success", "message": f"Clicked {ghost_id}."}
