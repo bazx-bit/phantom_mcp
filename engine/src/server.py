@@ -230,6 +230,58 @@ async def list_tools() -> list[types.Tool]:
                 "required": ["url"]
             }
         ),
+        # ─── MULTI-TAB & COMPARISON ─────────────────────
+        types.Tool(
+            name="ghost_tab_open",
+            description="Open a new named browser tab and navigate to a URL. Use named tabs to work with multiple pages at once.",
+            inputSchema={
+                "type": "object",
+                "properties": {
+                    "name": {"type": "string", "description": "A short name for this tab (e.g. 'competitor', 'my_site')."},
+                    "url": {"type": "string", "description": "The URL to open."}
+                },
+                "required": ["name", "url"]
+            }
+        ),
+        types.Tool(
+            name="ghost_tab_switch",
+            description="Switch to a different named tab. All subsequent tools will operate on this tab.",
+            inputSchema={
+                "type": "object",
+                "properties": {
+                    "name": {"type": "string", "description": "Name of the tab to switch to."}
+                },
+                "required": ["name"]
+            }
+        ),
+        types.Tool(
+            name="ghost_tab_close",
+            description="Close a named tab.",
+            inputSchema={
+                "type": "object",
+                "properties": {
+                    "name": {"type": "string", "description": "Name of the tab to close."}
+                },
+                "required": ["name"]
+            }
+        ),
+        types.Tool(
+            name="ghost_tab_list",
+            description="List all open tabs with their names, URLs, and which one is active.",
+            inputSchema={"type": "object", "properties": {}}
+        ),
+        types.Tool(
+            name="ghost_compare",
+            description="Open two websites side-by-side in separate tabs, audit both (performance, content structure, tech stack, SEO, errors), and generate a structured diff report. This is the ultimate competitor analysis tool.",
+            inputSchema={
+                "type": "object",
+                "properties": {
+                    "url_a": {"type": "string", "description": "First site URL (e.g. your site)."},
+                    "url_b": {"type": "string", "description": "Second site URL (e.g. competitor)."}
+                },
+                "required": ["url_a", "url_b"]
+            }
+        ),
     ]
 
 
@@ -467,6 +519,96 @@ async def call_tool(name: str, arguments: dict) -> list[types.TextContent]:
         lines.append("  4. Compare with previous frame. Note what changed.")
         lines.append("  5. Continue until the last frame.")
         lines.append("  6. Compile your findings into a final report.")
+
+        return [types.TextContent(type="text", text="\n".join(lines))]
+
+    # ─── MULTI-TAB & COMPARISON DISPATCHERS ─────────────────────
+
+    elif name == "ghost_tab_open":
+        result = await browser_manager.open_tab(arguments["name"], arguments["url"])
+        return [types.TextContent(type="text", text=result)]
+
+    elif name == "ghost_tab_switch":
+        result = await browser_manager.switch_tab(arguments["name"])
+        return [types.TextContent(type="text", text=result)]
+
+    elif name == "ghost_tab_close":
+        result = await browser_manager.close_tab(arguments["name"])
+        return [types.TextContent(type="text", text=result)]
+
+    elif name == "ghost_tab_list":
+        tabs = browser_manager.list_tabs()
+        if not tabs:
+            return [types.TextContent(type="text", text="No tabs open.")]
+        lines = ["Open Tabs:"]
+        for t in tabs:
+            marker = "→" if t["active"] else " "
+            lines.append(f"  {marker} [{t['name']}] {t['url']} — \"{t['title']}\"")
+        return [types.TextContent(type="text", text="\n".join(lines))]
+
+    elif name == "ghost_compare":
+        result = await browser_manager.compare_sites(arguments["url_a"], arguments["url_b"])
+        if result["status"] == "error":
+            return [types.TextContent(type="text", text=f"Comparison failed: {result['message']}")]
+
+        a = result["comparisons"]["site_a"]
+        b = result["comparisons"]["site_b"]
+        diff = result["diff"]
+
+        lines = [
+            "═" * 60,
+            "🔍 SITE COMPARISON REPORT",
+            "═" * 60,
+            f"",
+            f"  SITE A: {a['url']}",
+            f"  Title:  {a['title']}",
+            f"  Tech:   {', '.join(a['tech']['frameworks']) or 'None detected'}",
+            f"  ©:      {a['tech'].get('copyright_year', '?')}",
+            f"",
+            f"  SITE B: {b['url']}",
+            f"  Title:  {b['title']}",
+            f"  Tech:   {', '.join(b['tech']['frameworks']) or 'None detected'}",
+            f"  ©:      {b['tech'].get('copyright_year', '?')}",
+            f"",
+            "─" * 60,
+            "⚡ PERFORMANCE HEAD-TO-HEAD:",
+            f"{'Metric':<25} {'Site A':>10} {'Site B':>10} {'Winner':>8}",
+            "─" * 60,
+        ]
+        for d in diff:
+            m = d["metric"]
+            va = str(d.get("site_a", "?"))
+            vb = str(d.get("site_b", "?"))
+            w = d.get("winner", "")
+            lines.append(f"  {m:<23} {va:>10} {vb:>10} {w:>8}")
+
+        lines.append("")
+        lines.append("─" * 60)
+        lines.append("📊 CONTENT STRUCTURE:")
+        lines.append(f"  Page Height:   A={a['structure'].get('page_height', '?')}px  |  B={b['structure'].get('page_height', '?')}px")
+        lines.append(f"  Headings (H1-3): A={len(a['structure'].get('headings', []))}  |  B={len(b['structure'].get('headings', []))}")
+        lines.append("")
+        lines.append("  Site A Headings:")
+        for h in a["structure"].get("headings", [])[:8]:
+            lines.append(f"    [{h['tag']}] {h['text']}")
+        lines.append("  Site B Headings:")
+        for h in b["structure"].get("headings", [])[:8]:
+            lines.append(f"    [{h['tag']}] {h['text']}")
+
+        lines.append("")
+        lines.append("─" * 60)
+        lines.append("🛡️ SEO & HEALTH:")
+        lines.append(f"  Meta Desc:  A={'✅' if a['structure'].get('has_meta_description') else '❌'}  |  B={'✅' if b['structure'].get('has_meta_description') else '❌'}")
+        lines.append(f"  OG Image:   A={'✅' if a['structure'].get('has_og_image') else '❌'}  |  B={'✅' if b['structure'].get('has_og_image') else '❌'}")
+        lines.append(f"  JS Errors:  A={a['console_errors']}  |  B={b['console_errors']}")
+        lines.append(f"  Failed Req: A={a['failed_requests']}  |  B={b['failed_requests']}")
+
+        lines.append("")
+        lines.append("─" * 60)
+        lines.append("📸 HERO SCREENSHOTS:")
+        lines.append(f"  Site A: {a['hero_screenshot']}")
+        lines.append(f"  Site B: {b['hero_screenshot']}")
+        lines.append("═" * 60)
 
         return [types.TextContent(type="text", text="\n".join(lines))]
 

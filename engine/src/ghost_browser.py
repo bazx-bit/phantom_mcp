@@ -39,6 +39,11 @@ class GhostBrowserManager:
         self.vision_frames: List[str] = []
         self.max_vision_frames = 50
 
+        # Multi-Tab State
+        self.tabs: Dict[str, Page] = {}       # name -> Page
+        self.tab_data: Dict[str, Dict] = {}   # name -> {console_logs, network_log}
+        self.active_tab: Optional[str] = None
+
     # ─── LIFECYCLE ────────────────────────────────────────────────
 
     async def initialize(self):
@@ -90,8 +95,17 @@ class GhostBrowserManager:
 
     async def close(self):
         """Shuts down the daemon gracefully and cleans up session data."""
-        # Stop vision first
         await self.stop_vision()
+
+        # Close all tabs
+        for name, page in self.tabs.items():
+            try:
+                await page.close()
+            except Exception:
+                pass
+        self.tabs.clear()
+        self.tab_data.clear()
+        self.active_tab = None
 
         if self.context:
             await self.context.close()
@@ -101,12 +115,185 @@ class GhostBrowserManager:
             await self.playwright.stop()
         self.playwright = None
 
-        # Session Cleanup: Remove vision frames to save space
+        # Session Cleanup: Remove vision frames
         try:
             for f in os.listdir(self.vision_dir):
                 os.remove(os.path.join(self.vision_dir, f))
         except Exception:
             pass
+
+    # ─── TAB MANAGEMENT ────────────────────────────────────────
+
+    async def open_tab(self, name: str, url: str) -> str:
+        """Open a new named tab and navigate to a URL."""
+        try:
+            page = await self.context.new_page()
+            # Set up listeners for this tab
+            tab_logs = []
+            tab_network = []
+            page.on("console", lambda msg: tab_logs.append(f"[{msg.type.upper()}] {msg.text}") if msg.type in ("error", "warning") else None)
+            page.on("requestfinished", lambda req: tab_network.append({"url": req.url[:120], "method": req.method, "status": "OK", "type": req.resource_type}))
+            page.on("requestfailed", lambda req: tab_network.append({"url": req.url[:120], "method": req.method, "status": "FAILED", "type": req.resource_type}))
+
+            await page.goto(url, wait_until="networkidle", timeout=25000)
+            title = await page.title()
+
+            self.tabs[name] = page
+            self.tab_data[name] = {"console_logs": tab_logs, "network_log": tab_network, "url": url, "title": title}
+            self.active_tab = name
+            self.page = page  # Set as active page so all tools work on it
+            return f"Tab '{name}' opened: {url} | Title: '{title}'"
+        except Exception as e:
+            return f"Tab open failed: {str(e)}"
+
+    async def switch_tab(self, name: str) -> str:
+        """Switch the active tab."""
+        if name not in self.tabs:
+            return f"Tab '{name}' not found. Available: {', '.join(self.tabs.keys())}"
+        self.active_tab = name
+        self.page = self.tabs[name]
+        self.console_logs = self.tab_data[name]["console_logs"]
+        self.network_log = self.tab_data[name]["network_log"]
+        return f"Switched to tab '{name}' ({self.tab_data[name]['url']})"
+
+    async def close_tab(self, name: str) -> str:
+        """Close a named tab."""
+        if name not in self.tabs:
+            return f"Tab '{name}' not found."
+        await self.tabs[name].close()
+        del self.tabs[name]
+        del self.tab_data[name]
+        if self.active_tab == name:
+            self.active_tab = next(iter(self.tabs), None)
+            self.page = self.tabs.get(self.active_tab) if self.active_tab else self.page
+        return f"Tab '{name}' closed."
+
+    def list_tabs(self) -> List[Dict[str, str]]:
+        """List all open tabs."""
+        return [{"name": n, "url": d["url"], "title": d["title"], "active": n == self.active_tab} for n, d in self.tab_data.items()]
+
+    # ─── SIDE-BY-SIDE COMPARISON ────────────────────────────────
+
+    async def compare_sites(self, url_a: str, url_b: str) -> Dict[str, Any]:
+        """
+        Open two sites in separate tabs, audit both, and generate a
+        structured comparison report with performance, content, and
+        visual differences.
+        """
+        try:
+            report = {"url_a": url_a, "url_b": url_b, "status": "success"}
+
+            # ── Open both tabs ──
+            await self.open_tab("site_a", url_a)
+            await self.open_tab("site_b", url_b)
+
+            comparisons = {}
+
+            for label in ["site_a", "site_b"]:
+                await self.switch_tab(label)
+                url = self.tab_data[label]["url"]
+                title = self.tab_data[label]["title"]
+
+                # Performance
+                perf = await self.get_performance_metrics()
+                perf_data = perf.get("metrics", {}) if perf.get("status") == "success" else {}
+
+                # Hero screenshot
+                hero_path = os.path.join(self.screenshots_dir, f"compare_{label}_hero.png")
+                await self.page.screenshot(path=hero_path, full_page=False)
+
+                # Content structure
+                structure = await self.page.evaluate("""
+                    () => {
+                        const headings = Array.from(document.querySelectorAll('h1,h2,h3')).map(h => ({tag: h.tagName, text: h.innerText.trim().substring(0, 80)}));
+                        const links = document.querySelectorAll('a[href]').length;
+                        const images = document.querySelectorAll('img').length;
+                        const forms = document.querySelectorAll('form').length;
+                        const buttons = document.querySelectorAll('button').length;
+                        const scripts = document.querySelectorAll('script').length;
+                        const meta_desc = document.querySelector('meta[name="description"]');
+                        const og_image = document.querySelector('meta[property="og:image"]');
+                        return {
+                            headings, links, images, forms, buttons, scripts,
+                            has_meta_description: !!meta_desc,
+                            meta_description: meta_desc ? meta_desc.content.substring(0, 120) : null,
+                            has_og_image: !!og_image,
+                            page_height: document.body.scrollHeight
+                        };
+                    }
+                """)
+
+                # Tech stack detection
+                tech = await self.page.evaluate("""
+                    () => {
+                        const detected = [];
+                        if (window.React || document.querySelector('[data-reactroot]')) detected.push('React');
+                        if (window.__NEXT_DATA__) detected.push('Next.js');
+                        if (window.__NUXT__) detected.push('Nuxt');
+                        if (document.querySelector('[data-v-]')) detected.push('Vue');
+                        if (window.angular || document.querySelector('[ng-app]')) detected.push('Angular');
+                        if (document.querySelector('script[src*="jquery"]')) detected.push('jQuery');
+                        if (document.querySelector('script[src*="gtag"]') || document.querySelector('script[src*="analytics"]')) detected.push('Google Analytics');
+                        if (document.querySelector('link[href*="tailwind"]') || document.querySelector('[class*="tw-"]')) detected.push('Tailwind');
+                        if (document.querySelector('link[href*="bootstrap"]')) detected.push('Bootstrap');
+                        const copyright = document.body.innerText.match(/©\s*(\d{4})/); 
+                        return { frameworks: detected, copyright_year: copyright ? copyright[1] : null };
+                    }
+                """)
+
+                errors = self.tab_data[label]["console_logs"]
+                network = self.tab_data[label]["network_log"]
+
+                comparisons[label] = {
+                    "url": url,
+                    "title": title,
+                    "hero_screenshot": hero_path,
+                    "performance": perf_data,
+                    "structure": structure,
+                    "tech": tech,
+                    "console_errors": len(errors),
+                    "network_requests": len(network),
+                    "failed_requests": len([r for r in network if r["status"] == "FAILED"]),
+                }
+
+            report["comparisons"] = comparisons
+
+            # ── Generate Diff ──
+            a = comparisons["site_a"]
+            b = comparisons["site_b"]
+            diff = []
+
+            # Performance diff
+            for metric in ["domContentLoaded", "fullLoad", "firstContentfulPaint", "resourceCount", "totalTransferSize"]:
+                val_a = a["performance"].get(metric, 0)
+                val_b = b["performance"].get(metric, 0)
+                if val_a and val_b:
+                    winner = "A" if val_a < val_b else "B" if val_b < val_a else "TIE"
+                    diff.append({"metric": metric, "site_a": val_a, "site_b": val_b, "winner": winner})
+
+            # Content diff
+            for key in ["links", "images", "forms", "buttons", "scripts"]:
+                diff.append({"metric": key, "site_a": a["structure"].get(key, 0), "site_b": b["structure"].get(key, 0)})
+
+            # SEO diff
+            diff.append({"metric": "has_meta_description", "site_a": a["structure"].get("has_meta_description"), "site_b": b["structure"].get("has_meta_description")})
+            diff.append({"metric": "has_og_image", "site_a": a["structure"].get("has_og_image"), "site_b": b["structure"].get("has_og_image")})
+
+            # Error diff
+            diff.append({"metric": "console_errors", "site_a": a["console_errors"], "site_b": b["console_errors"]})
+            diff.append({"metric": "failed_requests", "site_a": a["failed_requests"], "site_b": b["failed_requests"]})
+
+            report["diff"] = diff
+            report["message"] = "Comparison complete."
+
+            # Clean up comparison tabs
+            await self.close_tab("site_a")
+            await self.close_tab("site_b")
+
+            return report
+
+        except Exception as e:
+            return {"status": "error", "message": f"Comparison failed: {str(e)}"}
 
     # ─── NAVIGATION ───────────────────────────────────────────────
 
