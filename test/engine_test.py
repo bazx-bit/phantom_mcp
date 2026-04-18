@@ -121,7 +121,7 @@ async def test_full_engine():
     check("Mutation drain works", isinstance(mutations, list))
 
     # ─── SKILLS LOADED ────────────────────────────────
-    skills_dir = os.path.join(os.path.dirname(__file__), "..", "skills")
+    skills_dir = os.path.join(os.path.dirname(__file__), "..", "engine", "src", "skills")
     skill_files = [f for f in os.listdir(skills_dir) if f.endswith(".md")]
     check(f"Skills loaded ({len(skill_files)} found)", len(skill_files) >= 7, str(skill_files))
 
