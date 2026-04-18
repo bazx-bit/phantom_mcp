@@ -12,8 +12,7 @@ nest_asyncio.apply()
 
 app = Server("Site-Ghost")
 browser_manager = GhostBrowserManager()
-
-SKILLS_DIR = os.path.join(os.path.dirname(__file__), "..", "..", "skills")
+SKILLS_DIR = os.path.join(os.path.dirname(__file__), "skills")
 
 # ─── TOOLS ────────────────────────────────────────────────────────
 

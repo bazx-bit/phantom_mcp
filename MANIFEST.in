@@ -1,0 +1,3 @@
+# Explicitly include the custom DOM mapper script and all markdown skills
+include engine/src/dom_mapper.js
+recursive-include engine/src/skills *.md

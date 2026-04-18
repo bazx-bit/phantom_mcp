@@ -19,7 +19,14 @@ dev = [
 ]
 
 [project.scripts]
+phantom-mcp = "engine.src.server:main"
 site-ghost = "engine.src.server:main"
+
+[tool.setuptools]
+include-package-data = true
+
+[tool.setuptools.packages.find]
+include = ["engine*"]
 
 [build-system]
 requires = ["setuptools"]

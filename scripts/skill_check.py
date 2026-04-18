@@ -29,7 +29,7 @@ def check_skill(filepath):
     return errors
 
 def main():
-    skills_dir = os.path.join(os.path.dirname(__file__), "..", "skills")
+    skills_dir = os.path.join(os.path.dirname(__file__), "..", "engine", "src", "skills")
     if not os.path.exists(skills_dir):
         print(f"❌ Skills directory not found at {skills_dir}")
         sys.exit(1)
