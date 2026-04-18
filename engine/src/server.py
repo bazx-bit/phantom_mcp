@@ -204,6 +204,32 @@ async def list_tools() -> list[types.Tool]:
                 }
             }
         ),
+        # Frame Context Reader
+        types.Tool(
+            name="ghost_frame_context",
+            description="Read the full JSON context packet for a specific cinematic frame. Use this in the analysis loop to understand exactly what is visible at each scroll position — elements, animations, errors, network.",
+            inputSchema={
+                "type": "object",
+                "properties": {
+                    "frame_index": {"type": "integer", "description": "The frame number to read context for (from cinematic_scroll results)."}
+                },
+                "required": ["frame_index"]
+            }
+        ),
+        # Full Page Analysis
+        types.Tool(
+            name="ghost_analyze_page",
+            description="Perform a full cinematic scan of the page. Scrolls top-to-bottom, captures viewport screenshots with rich JSON context at every stop. Returns a structured per-frame manifest for sequential AI analysis. Use this to audit an entire page section-by-section.",
+            inputSchema={
+                "type": "object",
+                "properties": {
+                    "url": {"type": "string", "description": "URL to navigate to and analyze."},
+                    "step_px": {"type": "integer", "description": "Pixels per scroll step (default 350)."},
+                    "pause_ms": {"type": "integer", "description": "Pause at each stop in ms (default 800)."}
+                },
+                "required": ["url"]
+            }
+        ),
     ]
 
 
@@ -260,11 +286,13 @@ async def call_tool(name: str, arguments: dict) -> list[types.TextContent]:
         )
         if result["status"] == "error":
             return [types.TextContent(type="text", text=result["message"])]
-        text = f"{result['message']}\nPage Height: {result['page_height']}px\nSnapshots:\n"
-        text += "\n".join([f"  - {s}" for s in result["snapshots"][:20]])
-        if len(result["snapshots"]) > 20:
-            text += f"\n  ... and {len(result['snapshots']) - 20} more"
-        return [types.TextContent(type="text", text=text)]
+        # Build a per-frame summary for the AI
+        lines = [f"{result['message']}\nPage Height: {result['page_height']}px\n"]
+        lines.append("FRAME MANIFEST (use ghost_frame_context to read full context for any frame):")
+        for f in result["frames"]:
+            s = f["summary"]
+            lines.append(f"  Frame {s['frame']} | {s['scroll_percent']}% | {s['elements']} elements | {s['animations']} anims | {s['errors']} errors | img: {f['image']}")
+        return [types.TextContent(type="text", text="\n".join(lines))]
 
     elif name == "ghost_drag":
         result = await browser_manager.drag_to(arguments["source_id"], arguments["target_id"])
@@ -350,12 +378,97 @@ async def call_tool(name: str, arguments: dict) -> list[types.TextContent]:
         result = await browser_manager.stop_vision()
         return [types.TextContent(type="text", text=result)]
 
-    elif name == "ghost_vision_timeline":
+    elif name == \"ghost_vision_timeline\":
         frames = await browser_manager.get_vision_timeline(arguments.get("limit", 10))
         if not frames:
             return [types.TextContent(type="text", text="No vision frames captured. Did you start_vision?")]
         text = f"Captured {len(frames)} frames:\n" + "\n".join([f"  - {f}" for f in frames])
         return [types.TextContent(type="text", text=text)]
+
+    elif name == "ghost_frame_context":
+        frame_idx = arguments["frame_index"]
+        json_path = os.path.join(browser_manager.screenshots_dir, f"cinematic_{frame_idx}.json")
+        if not os.path.exists(json_path):
+            return [types.TextContent(type="text", text=f"No context found for frame {frame_idx}. Run ghost_cinematic_scroll or ghost_analyze_page first.")]
+        with open(json_path, "r", encoding="utf-8") as f:
+            context = json.load(f)
+        # Format the context for the AI to read as structured text
+        img_path = os.path.join(browser_manager.screenshots_dir, f"cinematic_{frame_idx}.png")
+        lines = [
+            f"=== FRAME {frame_idx} CONTEXT ===",
+            f"Scroll: {context['scroll_y']}px / {context['page_height']}px ({context['scroll_percent']}%)",
+            f"Screenshot: {img_path}",
+            f"Visible Elements: {context['visible_element_count']}",
+        ]
+        for el in context.get("visible_elements", []):
+            txt = el.get("text", "")[:50]
+            tag = el.get("tag", "?")
+            bounds = el.get("bounds", {})
+            line = f"  [{tag}] \"{txt}\" @ ({bounds.get('x',0)},{bounds.get('y',0)}) {bounds.get('w',0)}x{bounds.get('h',0)}"
+            if el.get("href"):
+                line += f" -> {el['href'][:60]}"
+            lines.append(line)
+        if context.get("active_animations"):
+            lines.append(f"\nActive Animations: {len(context['active_animations'])}")
+            for a in context["active_animations"]:
+                lines.append(f"  🌀 {a['name']} on {a['target']} ({a['state']})")
+        if context.get("console_errors"):
+            lines.append(f"\nConsole Errors ({context['console_error_count']} total):")
+            for err in context["console_errors"]:
+                lines.append(f"  ❌ {err}")
+        return [types.TextContent(type="text", text="\n".join(lines))]
+
+    elif name == "ghost_analyze_page":
+        url = arguments["url"]
+        step = arguments.get("step_px", 350)
+        pause = arguments.get("pause_ms", 800)
+
+        # Navigate first
+        nav_result = await browser_manager.navigate(url)
+
+        # Run cinematic scroll with context capture
+        result = await browser_manager.cinematic_scroll(step_px=step, pause_ms=pause)
+        if result["status"] == "error":
+            return [types.TextContent(type="text", text=f"Analysis failed: {result['message']}")]
+
+        # Get performance metrics
+        perf = await browser_manager.get_performance_metrics()
+
+        # Build the analysis manifest
+        lines = [
+            f"🔍 PAGE ANALYSIS: {url}",
+            f"{nav_result}",
+            f"",
+            f"{result['message']}",
+            f"Page Height: {result['page_height']}px",
+            f"",
+        ]
+
+        # Performance summary
+        if perf.get("status") == "success":
+            m = perf["metrics"]
+            lines.append("⚡ PERFORMANCE:")
+            lines.append(f"  FCP: {m.get('firstContentfulPaint', '?')}ms | Load: {m.get('fullLoad', '?')}ms | Resources: {m.get('resourceCount', '?')}")
+            lines.append("")
+
+        # Frame manifest
+        lines.append("📋 FRAME-BY-FRAME MANIFEST:")
+        lines.append("(Process each frame sequentially. Use ghost_frame_context(N) to read the full context for frame N.)")
+        lines.append("")
+        for f in result["frames"]:
+            s = f["summary"]
+            flag = "🔴" if s["errors"] > 0 else ("🌀" if s["animations"] > 0 else "✅")
+            lines.append(f"  {flag} Frame {s['frame']:>2d} | {s['scroll_percent']:>5.1f}% | {s['elements']:>2d} elements | {s['animations']} anims | {s['errors']} errors")
+        lines.append("")
+        lines.append("💡 ANALYSIS PROTOCOL:")
+        lines.append("  1. Start with Frame 0 → call ghost_frame_context(0)")
+        lines.append("  2. Study the visible elements, check for issues")
+        lines.append("  3. Move to Frame 1 → call ghost_frame_context(1)")
+        lines.append("  4. Compare with previous frame. Note what changed.")
+        lines.append("  5. Continue until the last frame.")
+        lines.append("  6. Compile your findings into a final report.")
+
+        return [types.TextContent(type="text", text="\n".join(lines))]
 
     raise ValueError(f"Unknown tool: {name}")
 
