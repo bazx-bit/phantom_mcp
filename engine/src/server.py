@@ -6,7 +6,7 @@ import nest_asyncio
 import mcp.types as types
 from mcp.server import Server
 from mcp.server.stdio import stdio_server
-from ghost_browser import GhostBrowserManager
+from .ghost_browser import GhostBrowserManager
 
 nest_asyncio.apply()
 
@@ -429,7 +429,7 @@ async def call_tool(name: str, arguments: dict) -> list[types.TextContent]:
         result = await browser_manager.stop_vision()
         return [types.TextContent(type="text", text=result)]
 
-    elif name == \"ghost_vision_timeline\":
+    elif name == "ghost_vision_timeline":
         frames = await browser_manager.get_vision_timeline(arguments.get("limit", 10))
         if not frames:
             return [types.TextContent(type="text", text="No vision frames captured. Did you start_vision?")]
@@ -674,9 +674,13 @@ async def get_prompt(name: str, arguments: dict | None) -> types.GetPromptResult
 
 # ─── MAIN ─────────────────────────────────────────────────────────
 
-async def main():
+async def serve():
     async with stdio_server() as (read_stream, write_stream):
         await app.run(read_stream, write_stream, app.create_initialization_options())
 
+def main():
+    """Main entry point for the console script."""
+    asyncio.run(serve())
+
 if __name__ == "__main__":
-    asyncio.run(main())
+    main()
