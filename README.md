@@ -34,6 +34,12 @@ Every interaction is automatically **video-recorded** as `.webm` snippets. The A
 | Console errors | None | **Live error/warning capture** |
 | JS injection | None | **Execute arbitrary JS on page** |
 
+- **Vision Engine.** Low-latency video capture and frame-by-frame visual analysis.
+- **Phantom Mirror.** High-fidelity UI cloning that captures 'Kinetic Soul' (animations, glow, design tokens).
+- **Forensic Reporter.** Professional standalone PDF generation with 2026 AI-readiness auditing.
+- **Deep Deconstructor.** Mathematical design system extraction (Palettes, Typography, Spacing).
+- **Visual Precinct.** Precise precision tracking for dynamic and animated DOM elements.
+
 ---
 
 ## ⚡ Quick Start
