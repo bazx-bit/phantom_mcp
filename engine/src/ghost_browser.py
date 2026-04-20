@@ -3,7 +3,12 @@ import json
 import os
 import time
 from typing import Dict, Any, Optional, List
+from datetime import datetime
 from playwright.async_api import async_playwright, Page, BrowserContext, Browser
+try:
+    from .ghost_reporter import GhostReporter
+except (ImportError, ValueError):
+    from ghost_reporter import GhostReporter
 
 
 class GhostBrowserManager:
@@ -43,6 +48,12 @@ class GhostBrowserManager:
         self.tabs: Dict[str, Page] = {}       # name -> Page
         self.tab_data: Dict[str, Dict] = {}   # name -> {console_logs, network_log}
         self.active_tab: Optional[str] = None
+
+        # Reporting & Audit State
+        self.reports_dir = os.path.join(os.getcwd(), '.ghost', 'reports')
+        os.makedirs(self.reports_dir, exist_ok=True)
+        self.reporter = GhostReporter(self.reports_dir)
+        self.last_audit_data: Optional[Dict[str, Any]] = None
 
     # ─── LIFECYCLE ────────────────────────────────────────────────
 
@@ -300,6 +311,9 @@ class GhostBrowserManager:
 
             report["diff"] = diff
             report["message"] = "Comparison complete."
+            
+            # Register for reporting
+            self.last_audit_data = report
 
             # Clean up comparison tabs
             await self.close_tab("site_a")
@@ -309,6 +323,145 @@ class GhostBrowserManager:
 
         except Exception as e:
             return {"status": "error", "message": f"Comparison failed: {str(e)}"}
+
+    async def run_full_audit(self) -> Dict[str, Any]:
+        """
+        Perform a comprehensive forensic audit of the current page.
+        Gathers performance, structural, and technical metadata.
+        """
+        try:
+            url = self.page.url
+            title = await self.page.title()
+
+            # 1. Performance
+            perf = await self.get_performance_metrics()
+            perf_data = perf.get("metrics", {}) if perf.get("status") == "success" else {}
+
+            # 2. Hero Screenshot
+            hero_path = os.path.join(self.screenshots_dir, "audit_hero.png")
+            await self.page.screenshot(path=hero_path, full_page=False)
+
+            # 3. DOM Mapping (Basic count)
+            dom = await self.map_dom()
+            element_count = dom.get("element_count", 0)
+
+            # 4. Content Structure & Semantic Scan
+            structure = await self.page.evaluate("""
+                () => {
+                    const headings = Array.from(document.querySelectorAll('h1,h2,h3,h4,h5,h6')).map(h => ({
+                        tag: h.tagName, 
+                        text: h.innerText.trim().substring(0, 100),
+                        level: parseInt(h.tagName[1])
+                    }));
+                    
+                    const links = Array.from(document.querySelectorAll('a[href]'));
+                    const mixed_content = links.filter(a => a.href.startsWith('http://')).map(a => a.href).slice(0, 5);
+                    
+                    const semantic_tags = {
+                        main: document.querySelectorAll('main').length,
+                        article: document.querySelectorAll('article').length,
+                        section: document.querySelectorAll('section').length,
+                        header: document.querySelectorAll('header').length,
+                        footer: document.querySelectorAll('footer').length,
+                        nav: document.querySelectorAll('nav').length,
+                        aside: document.querySelectorAll('aside').length
+                    };
+
+                    const meta_desc = document.querySelector('meta[name="description"]');
+                    const og_image = document.querySelector('meta[property="og:image"]');
+                    
+                    return {
+                        headings, 
+                        link_count: links.length, 
+                        mixed_content,
+                        semantic_tags,
+                        images: document.querySelectorAll('img').length,
+                        has_meta_description: !!meta_desc,
+                        meta_description: meta_desc ? meta_desc.content.substring(0, 120) : null,
+                        has_og_image: !!og_image,
+                        page_height: document.body.scrollHeight
+                    };
+                }
+            """)
+
+            # 5. Tech Stack
+            tech = await self.page.evaluate("""
+                () => {
+                    const detected = [];
+                    if (window.React || document.querySelector('[data-reactroot]')) detected.push('React');
+                    if (window.__NEXT_DATA__) detected.push('Next.js');
+                    if (window.__NUXT__) detected.push('Nuxt');
+                    if (document.querySelector('[data-v-]')) detected.push('Vue');
+                    if (window.angular || document.querySelector('[ng-app]')) detected.push('Angular');
+                    if (document.querySelector('script[src*="jquery"]')) detected.push('jQuery');
+                    if (document.querySelector('script[src*="gtag"]') || document.querySelector('script[src*="analytics"]')) detected.push('Google Analytics');
+                    if (document.querySelector('link[href*="tailwind"]') || document.querySelector('[class*="tw-"]')) detected.push('Tailwind');
+                    if (document.querySelector('link[href*="bootstrap"]')) detected.push('Bootstrap');
+                    const copyright = document.body.innerText.match(/©\s*(\d{4})/); 
+                    return { frameworks: detected, copyright_year: copyright ? copyright[1] : null };
+                }
+            """)
+
+            # 6. AI Readiness Check
+            ai_readiness = {"llms_txt": False, "robots_ai_rules": []}
+            try:
+                base_url = "/".join(url.split("/")[:3])
+                # Check llms.txt
+                resp = await self.page.request.get(f"{base_url}/llms.txt")
+                if resp.status == 200:
+                    ai_readiness["llms_txt"] = True
+                
+                # Check robots.txt for AI bots
+                resp_robots = await self.page.request.get(f"{base_url}/robots.txt")
+                if resp_robots.status == 200:
+                    robots_text = await resp_robots.text()
+                    for bot in ["GPTBot", "CCBot", "PerplexityBot"]:
+                        if bot in robots_text:
+                            ai_readiness["robots_ai_rules"].append(bot)
+            except:
+                pass
+
+            audit_result = {
+                "url": url,
+                "title": title,
+                "hero_screenshot": hero_path,
+                "performance": perf_data,
+                "structure": structure,
+                "tech": tech,
+                "ai_readiness": ai_readiness,
+                "element_count": element_count,
+                "console_errors": len(self.console_logs),
+                "network_requests": len(self.network_log),
+                "failed_requests": len([r for r in self.network_log if r["status"] == "FAILED"]),
+                "timestamp": datetime.now().isoformat()
+            }
+
+            # Register for reporter
+            self.last_audit_data = audit_result
+            return audit_result
+
+        except Exception as e:
+            return {"status": "error", "message": f"Audit failed: {str(e)}"}
+
+    async def generate_pdf(self, html_path: str, output_path: str) -> str:
+        """Renders a local HTML file to a professional PDF using Playwright."""
+        try:
+            # We use a secondary page/context to avoid messing with the active audit session
+            temp_page = await self.context.new_page()
+            await temp_page.goto(f"file:///{os.path.abspath(html_path)}", wait_until="networkidle")
+            
+            # PDF Options for Professional Layout
+            await temp_page.pdf(
+                path=output_path,
+                format="A4",
+                print_background=True,
+                margin={"top": "0px", "right": "0px", "bottom": "0px", "left": "0px"},
+                display_header_footer=False
+            )
+            await temp_page.close()
+            return output_path
+        except Exception as e:
+            raise Exception(f"PDF generation failed: {str(e)}")
 
     # ─── NAVIGATION ───────────────────────────────────────────────
 
@@ -375,8 +528,8 @@ class GhostBrowserManager:
                         if (!cursor) {
                             cursor = document.createElement('div');
                             cursor.id = '__ghost_cursor__';
-                            // A red laser-pointer style cursor
-                            cursor.style.cssText = 'position:fixed; top:0; left:0; width:24px; height:24px; border-radius:50%; background:rgba(255, 0, 85, 0.4); border:2px solid #FF0055; z-index:2147483647; pointer-events:none; transition: all 0.4s cubic-bezier(0.25, 1, 0.5, 1); transform:translate(-50%, -50%); box-shadow: 0 0 10px rgba(255,0,85,0.8);';
+                            // A high-end neon laser-pointer style cursor
+                            cursor.style.cssText = 'position:fixed; top:0; left:0; width:18px; height:18px; border-radius:50%; background:rgba(255, 0, 85, 0.6); border:2px solid #fff; z-index:2147483647; pointer-events:none; transition: all 0.6s cubic-bezier(0.16, 1, 0.3, 1); transform:translate(-50%, -50%); box-shadow: 0 0 15px #FF0055, 0 0 5px #fff;';
                             document.body.appendChild(cursor);
                         }
                         // Move cursor
@@ -392,12 +545,14 @@ class GhostBrowserManager:
                 await self.page.evaluate("""() => {
                     const c = document.getElementById('__ghost_cursor__');
                     if (c) {
-                        c.style.transform = 'translate(-50%, -50%) scale(0.5)';
-                        c.style.background = 'rgba(255, 255, 255, 0.8)';
+                        c.style.transform = 'translate(-50%, -50%) scale(2)';
+                        c.style.background = 'rgba(255, 255, 255, 0.9)';
+                        c.style.boxShadow = '0 0 40px #FF0055, 0 0 10px #fff';
                         setTimeout(() => {
                             c.style.transform = 'translate(-50%, -50%) scale(1)';
-                            c.style.background = 'rgba(255, 0, 85, 0.4)';
-                        }, 150);
+                            c.style.background = 'rgba(255, 0, 85, 0.6)';
+                            c.style.boxShadow = '0 0 15px #FF0055, 0 0 5px #fff';
+                        }, 250);
                     }
                 }""")
                 await locator.click(timeout=5000)

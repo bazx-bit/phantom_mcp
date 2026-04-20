@@ -28,7 +28,7 @@ Tracked features, improvements, and known limitations for Site-Ghost.
 
 - [ ] **Eval framework.** LLM-as-judge to score skill quality (like gstack's Tier 3 testing).
 - [ ] **Baseline snapshots.** Store DOM fingerprints + screenshots as versioned baselines for regression testing.
-- [ ] **Report export.** Generate HTML reports with embedded screenshots and interactive charts.
+- [x] **Report export.** Generate HTML reports with embedded screenshots and interactive charts.
 - [ ] **Plugin system.** Allow users to drop custom skills into `~/.site-ghost/skills/` for personal workflows.
 
 ## Known Limitations

@@ -259,11 +259,33 @@ async def list_tools() -> list[types.Tool]:
             inputSchema={
                 "type": "object",
                 "properties": {
-                    "name": {"type": "string", "description": "Name of the tab to close."}
+                    "name": {"type": "string", "description": "Cookie name to delete."}
                 },
                 "required": ["name"]
             }
         ),
+        # Run Forensic Audit
+        types.Tool(
+            name="ghost_run_audit",
+            description="Performs a deep forensic audit of the current page (Performance, Tech Stack, Structure, Health). Registers the data for a subsequent report generation.",
+            inputSchema={"type": "object", "properties": {}}
+        ),
+        # Generate Report
+        types.Tool(
+            name="ghost_generate_report",
+            description="Converts the results of the last audit or comparison into a standalone, professional ForgeX-branded HTML report. Embeds all screenshots as Base64.",
+            inputSchema={
+                "type": "object",
+                "properties": {
+                    "title": {"type": "string", "description": "Report title (e.g. 'Landing Page Forensic Audit')"},
+                    "client": {"type": "string", "description": "Client name or ID"},
+                    "report_type": {"type": "string", "enum": ["single", "compare"], "description": "Use 'compare' if the last action was a ghost_compare."},
+                    "format": {"type": "string", "enum": ["pdf", "html"], "description": "Output format. Use 'pdf' for professional sharing."}
+                },
+                "required": ["title", "client", "report_type"]
+            }
+        ),
+        # Multi-tab
         types.Tool(
             name="ghost_tab_list",
             description="List all open tabs with their names, URLs, and which one is active.",
@@ -399,6 +421,45 @@ async def call_tool(name: str, arguments: dict) -> list[types.TextContent]:
             f"  Total Transfer:     {round(m.get('totalTransferSize', 0) / 1024, 1)}KB"
         )
         return [types.TextContent(type="text", text=text)]
+
+    elif name == "ghost_run_audit":
+        audit_result = await browser_manager.run_full_audit()
+        if audit_result.get("status") == "error":
+             return [types.TextContent(type="text", text=f"Audit failed: {audit_result['message']}")]
+        
+        text = (
+            f"✅ FORENSIC AUDIT COMPLETE\n"
+            f"  URL: {audit_result['url']}\n"
+            f"  Elements Mapped: {audit_result['element_count']}\n"
+            f"  Console Errors:  {audit_result['console_errors']}\n"
+            f"  Performance: {audit_result['performance'].get('fullLoad', '?')}ms load\n\n"
+            f"Data registered for reporting. Use ghost_generate_report() to create the HTML document."
+        )
+        return [types.TextContent(type="text", text=text)]
+
+    elif name == "ghost_generate_report":
+        if not browser_manager.last_audit_data:
+            return [types.TextContent(type="text", text="No audit data found in session. Run ghost_run_audit() or ghost_compare() first.")]
+        
+        title = arguments["title"]
+        client = arguments["client"]
+        rtype = arguments["report_type"]
+        output_format = arguments.get("format", "pdf")
+        
+        try:
+            if rtype == "compare":
+                html_path = browser_manager.reporter.generate_compare_report(browser_manager.last_audit_data, title, client)
+            else:
+                html_path = browser_manager.reporter.generate_single_report(browser_manager.last_audit_data, title, client)
+            
+            final_path = html_path
+            if output_format == "pdf":
+                pdf_path = html_path.replace(".html", ".pdf")
+                final_path = await browser_manager.generate_pdf(html_path, pdf_path)
+            
+            return [types.TextContent(type="text", text=f"SUCCESS: Forensic {output_format.upper()} report generated at:\n{final_path}")]
+        except Exception as e:
+            return [types.TextContent(type="text", text=f"FAILED to generate report: {str(e)}")]
 
     elif name == "ghost_cookies":
         result = await browser_manager.get_cookies()
