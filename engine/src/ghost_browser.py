@@ -7,8 +7,10 @@ from datetime import datetime
 from playwright.async_api import async_playwright, Page, BrowserContext, Browser
 try:
     from .ghost_reporter import GhostReporter
+    from .ghost_deconstructor import GhostDeconstructor
 except (ImportError, ValueError):
     from ghost_reporter import GhostReporter
+    from ghost_deconstructor import GhostDeconstructor
 
 
 class GhostBrowserManager:
@@ -53,6 +55,7 @@ class GhostBrowserManager:
         self.reports_dir = os.path.join(os.getcwd(), '.ghost', 'reports')
         os.makedirs(self.reports_dir, exist_ok=True)
         self.reporter = GhostReporter(self.reports_dir)
+        self.deconstructor = GhostDeconstructor()
         self.last_audit_data: Optional[Dict[str, Any]] = None
 
     # ─── LIFECYCLE ────────────────────────────────────────────────
@@ -421,6 +424,9 @@ class GhostBrowserManager:
             except:
                 pass
 
+            # 7. UI/UX Deconstruction
+            deconstruction = await self.deconstruct_ui()
+
             audit_result = {
                 "url": url,
                 "title": title,
@@ -429,6 +435,7 @@ class GhostBrowserManager:
                 "structure": structure,
                 "tech": tech,
                 "ai_readiness": ai_readiness,
+                "deconstruction": deconstruction,
                 "element_count": element_count,
                 "console_errors": len(self.console_logs),
                 "network_requests": len(self.network_log),
@@ -462,6 +469,24 @@ class GhostBrowserManager:
             return output_path
         except Exception as e:
             raise Exception(f"PDF generation failed: {str(e)}")
+
+    async def deconstruct_ui(self) -> Dict[str, Any]:
+        """
+        Runs a deep architectural and design deconstruction of the current page.
+        Identifies design tokens, layout logic, and component roles.
+        """
+        try:
+            script = self.deconstructor.get_deconstruction_script()
+            raw_data = await self.page.evaluate(script)
+            
+            # Enrich with analysis
+            final_data = self.deconstructor.analyze_results(raw_data)
+            
+            # Store for potential reporting
+            self.last_decon_data = final_data
+            return final_data
+        except Exception as e:
+            return {"status": "error", "message": f"Deconstruction failed: {str(e)}"}
 
     # ─── NAVIGATION ───────────────────────────────────────────────
 

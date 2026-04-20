@@ -285,6 +285,12 @@ async def list_tools() -> list[types.Tool]:
                 "required": ["title", "client", "report_type"]
             }
         ),
+        # UI/UX Deconstructor
+        types.Tool(
+            name="ghost_deconstruct_ui",
+            description="Performs a deep architectural and design deconstruction of the current page. Identifies design tokens (colors, fonts), layout logic (flex/grid), and component roles. Returns structured design intent analysis.",
+            inputSchema={"type": "object", "properties": {}}
+        ),
         # Multi-tab
         types.Tool(
             name="ghost_tab_list",
@@ -460,6 +466,34 @@ async def call_tool(name: str, arguments: dict) -> list[types.TextContent]:
             return [types.TextContent(type="text", text=f"SUCCESS: Forensic {output_format.upper()} report generated at:\n{final_path}")]
         except Exception as e:
             return [types.TextContent(type="text", text=f"FAILED to generate report: {str(e)}")]
+
+    elif name == "ghost_deconstruct_ui":
+        result = await browser_manager.deconstruct_ui()
+        if result.get("status") == "error":
+            return [types.TextContent(type="text", text=f"Deconstruction failed: {result['message']}")]
+        
+        # Format the briefing for the AI
+        lines = [
+            "🏛️ UI/UX DECONSTRUCTION BRIEFING",
+            "═" * 40,
+            f"DESIGN INTENT: {result['analysis']['design_intent']}",
+            f"PRIMARY FONT:  {result['analysis']['primary_font']}",
+            f"UX FOCUS:      {result['analysis']['ux_focus']}",
+            "",
+            "🎨 BRAND PALETTE:",
+            f"  Backgrounds: {', '.join(result['palette']['background'])}",
+            f"  Text Colors: {', '.join(result['palette']['text'])}",
+            "",
+            "📐 ARCHITECTURE:",
+            f"  Layout Mode: {result['analysis']['layout_complexity']}",
+            f"  Containers:  {result['layout']['containers']} detected",
+            f"  Patterns:    {', '.join(result['discovered_components'])}",
+            "",
+            "💡 AI INSIGHT:",
+            result['analysis']['architecture_summary'],
+            "═" * 40
+        ]
+        return [types.TextContent(type="text", text="\n".join(lines))]
 
     elif name == "ghost_cookies":
         result = await browser_manager.get_cookies()

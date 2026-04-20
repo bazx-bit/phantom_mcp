@@ -287,6 +287,63 @@ class GhostReporter:
         </footer>
     </div>
 
+    <!-- PAGE 4: DESIGN SYSTEM FORENSIC -->
+    <div class="page" style="page-break-after: auto;">
+        <header>
+            <div class="logo-small">PHANTOM<span>.</span></div>
+            <div style="text-align: right; font-size: 12px; color: var(--text-dim);">DESIGN IDENTITY // PAGE 04</div>
+        </header>
+
+        <div class="section-title">Brand Identity // Palette Extraction</div>
+        <div class="grid">
+            <div class="card">
+                <h3>Primary Surface Palette</h3>
+                <div style="display: flex; flex-wrap: wrap; gap: 10px;">
+                    {"".join([f'<div style="width: 45px; height: 45px; border-radius: 4px; background: {c}; border: 1px solid var(--border);" title="{c}"></div>' for c in data.get('deconstruction', dict()).get('palette', dict()).get('background', [])[:12]])}
+                </div>
+                <p style="font-size: 10px; margin-top: 10px; color: var(--text-dim);">Background & UI Surface tokens detected via computed style audit.</p>
+            </div>
+            <div class="card">
+                <h3>Text & Content Palette</h3>
+                <div style="display: flex; flex-wrap: wrap; gap: 10px;">
+                    {"".join([f'<div style="width: 45px; height: 45px; border-radius: 4px; background: {c}; border: 1px solid var(--border);" title="{c}"></div>' for c in data.get('deconstruction', dict()).get('palette', dict()).get('text', [])[:12]])}
+                </div>
+                <p style="font-size: 10px; margin-top: 10px; color: var(--text-dim);">Typography and Iconography color tokens.</p>
+            </div>
+        </div>
+
+        <div class="card">
+            <h3>Typographic Scale Analysis</h3>
+            <table style="width: 100%; border-collapse: collapse; margin-top: 10px;">
+                <thead>
+                    <tr style="text-align: left; font-size: 10px; color: var(--text-dim); text-transform: uppercase;">
+                        <th style="padding: 10px;">Token</th>
+                        <th style="padding: 10px;">Size</th>
+                        <th style="padding: 10px;">Weight</th>
+                        <th style="padding: 10px;">Line Height</th>
+                    </tr>
+                </thead>
+                <tbody style="font-family: 'JetBrains Mono', monospace; font-size: 11px;">
+                    {"".join([f'<tr style="border-top: 1px solid var(--border);"> <td style="padding: 10px; color: var(--primary);">{tag.upper()}</td> <td style="padding: 10px;">{spec["fontSize"]}</td> <td style="padding: 10px;">{spec["fontWeight"]}</td> <td style="padding: 10px;">{spec["lineHeight"]}</td> </tr>' for tag, spec in data.get('deconstruction', dict()).get('typography', dict()).get('scale', dict()).items()])}
+                </tbody>
+            </table>
+        </div>
+
+        <div style="margin-top: 20px;" class="card">
+            <h3>Visual Architecture Summary</h3>
+            <p style="font-size: 14px; color: var(--text-dim);">
+                 {data.get('deconstruction', dict()).get('analysis', dict()).get('architecture_summary', 'Architectural patterns stable.')} 
+                 The site utilizes a <b>{data.get('deconstruction', dict()).get('analysis', dict()).get('design_intent', 'Modern')}</b> aesthetic with 
+                 <b>{data.get('deconstruction', dict()).get('analysis', dict()).get('primary_font', 'Standard')}</b> as the primary typeface.
+            </p>
+        </div>
+
+        <footer>
+            <div>DESIGN DECONSTRUCTION // FORGEX SOLUTIONS</div>
+            <div>STRICTLY CONFIDENTIAL</div>
+        </footer>
+    </div>
+
 </body>
 </html>
         """
