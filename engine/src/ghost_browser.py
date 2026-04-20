@@ -473,7 +473,8 @@ class GhostBrowserManager:
     async def deconstruct_ui(self) -> Dict[str, Any]:
         """
         Runs a deep architectural and design deconstruction of the current page.
-        Identifies design tokens, layout logic, and component roles.
+        Identifies design tokens (palette, typography), layout logic (flex/grid), 
+        and component roles to generate a 'Kinetic Soul' profile of the UI.
         """
         try:
             script = self.deconstructor.get_deconstruction_script()
