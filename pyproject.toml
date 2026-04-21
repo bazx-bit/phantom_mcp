@@ -1,6 +1,6 @@
 [project]
 name = "site-ghost"
-version = "1.0.0"
+version = "1.1.0"
 description = "Agentic UI/UX visual auditor with precision DOM mapping and live Playwright video recording."
 authors = [{name = "Raj", email = "rajbazx@gmail.com"}]
 requires-python = ">=3.10"
