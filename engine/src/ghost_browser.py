@@ -657,140 +657,6 @@ class GhostBrowserManager:
         except Exception as e:
             return f"Scroll failed: {str(e)}"
 
-    async def cinematic_scroll(self, step_px: int = 300, pause_ms: int = 800) -> Dict[str, Any]:
-        """
-        Performs a slow, cinematic top-to-bottom scroll of the entire page.
-        At each stop, captures:
-          - A viewport screenshot (what the user sees)
-          - A JSON context packet (scroll position, visible elements, errors, network, animations)
-        Returns a list of frame objects, each with an image path and its context.
-        """
-        try:
-            # Inject the DOM mapper script once for the session
-            script_path = os.path.join(os.path.dirname(__file__), "dom_mapper.js")
-            with open(script_path, "r") as f:
-                mapper_script = f.read()
-
-            # Go to top first
-            await self.page.evaluate("window.scrollTo({top: 0, behavior: 'smooth'})")
-            await asyncio.sleep(1)
-
-            page_height = await self.page.evaluate("document.body.scrollHeight")
-            viewport_h = await self.page.evaluate("window.innerHeight")
-            current = 0
-            frame_idx = 0
-            frames = []
-
-            while current < page_height - viewport_h:
-                # Smooth scroll one step
-                await self.page.evaluate(f"window.scrollBy({{top: {step_px}, behavior: 'smooth'}})")
-                await asyncio.sleep(pause_ms / 1000.0)
-
-                # Wait for local lazy-loaded images/fonts to paint
-                await self.page.evaluate("""() => {
-                    return Promise.all([
-                        document.fonts.ready,
-                        ...Array.from(document.querySelectorAll('img')).map(img => {
-                            if (img.complete) return Promise.resolve();
-                            return new Promise(resolve => { img.onload = img.onerror = resolve; });
-                        })
-                    ]);
-                }""")
-                await asyncio.sleep(0.2)
-
-                # ── Capture Screenshot ──
-                img_path = os.path.join(self.screenshots_dir, f"cinematic_{frame_idx}.png")
-
-                await self.page.screenshot(path=img_path, full_page=False)
-
-                # ── Build JSON Context Packet ──
-                scroll_y = await self.page.evaluate("window.scrollY")
-
-                # Get visible elements in the current viewport
-                visible_elements = await self.page.evaluate("""
-                    () => {
-                        const vw = window.innerWidth, vh = window.innerHeight;
-                        return Array.from(document.querySelectorAll('h1,h2,h3,h4,p,a,button,img,input,form,nav,section,header,footer'))
-                            .map(el => {
-                                const r = el.getBoundingClientRect();
-                                if (r.top > vh || r.bottom < 0 || r.width === 0) return null;
-                                return {
-                                    tag: el.tagName,
-                                    text: (el.innerText || el.alt || el.placeholder || '').substring(0, 80),
-                                    href: el.href || null,
-                                    src: el.src ? el.src.substring(0, 120) : null,
-                                    bounds: {x: Math.round(r.x), y: Math.round(r.y), w: Math.round(r.width), h: Math.round(r.height)},
-                                    visible: true
-                                };
-                            })
-                            .filter(Boolean)
-                            .slice(0, 40);
-                    }
-                """)
-
-                # Get active animations in viewport
-                active_animations = await self.page.evaluate("""
-                    () => {
-                        return Array.from(document.getAnimations ? document.getAnimations() : [])
-                            .filter(a => a.playState === 'running')
-                            .map(a => ({
-                                name: a.animationName || a.id || 'unnamed',
-                                state: a.playState,
-                                target: a.effect && a.effect.target ? a.effect.target.tagName : 'unknown'
-                            }))
-                            .slice(0, 10);
-                    }
-                """)
-
-                # Snapshot of console errors at this frame
-                frame_errors = self.console_logs.copy()
-
-                # Network requests since last frame
-                recent_network = self.network_log[-10:] if self.network_log else []
-
-                context = {
-                    "frame_index": frame_idx,
-                    "scroll_y": scroll_y,
-                    "page_height": page_height,
-                    "viewport_height": viewport_h,
-                    "scroll_percent": round((scroll_y / max(page_height - viewport_h, 1)) * 100, 1),
-                    "visible_elements": visible_elements,
-                    "visible_element_count": len(visible_elements),
-                    "active_animations": active_animations,
-                    "console_errors": frame_errors[-5:],  # last 5 errors
-                    "console_error_count": len(frame_errors),
-                    "recent_network": recent_network,
-                }
-
-                # Save JSON context alongside screenshot
-                json_path = os.path.join(self.screenshots_dir, f"cinematic_{frame_idx}.json")
-                with open(json_path, "w", encoding="utf-8") as jf:
-                    json.dump(context, jf, indent=2, default=str)
-
-                frames.append({
-                    "image": img_path,
-                    "context": json_path,
-                    "summary": {
-                        "frame": frame_idx,
-                        "scroll_percent": context["scroll_percent"],
-                        "elements": context["visible_element_count"],
-                        "animations": len(active_animations),
-                        "errors": context["console_error_count"],
-                    }
-                })
-
-                current += step_px
-                frame_idx += 1
-
-            return {
-                "status": "success",
-                "frames": frames,
-                "frame_count": len(frames),
-                "page_height": page_height,
-                "message": f"Cinematic scan complete. {len(frames)} frames with JSON context captured."
-            }
-        except Exception as e:
-            return {"status": "error", "message": f"Cinematic scroll failed: {str(e)}"}
 
     # ─── DRAG AND DROP ────────────────────────────────────────────
 
@@ -909,64 +775,58 @@ class GhostBrowserManager:
         except Exception:
             return []
 
-    # ─── VISION SYSTEM (LIVE AI FEED) ─────────────────────────────
+    # ─── AGENTIC VISION: REAL-TIME EYE ──────────────────────────
 
-    async def start_vision(self, fps: float = 2.0) -> str:
-        """Start the background high-precision frame capture."""
-        if self.vision_active:
-            self.vision_fps = fps # Update FPS if already running
-            return f"Vision already active. Updated FPS to {fps}."
-        
-        self.vision_active = True
-        self.vision_fps = max(0.5, min(fps, 10.0)) # Cap at 0.5-10 FPS
-        self.vision_task = asyncio.create_task(self._vision_loop())
-        return f"Vision started at {self.vision_fps} FPS."
+    async def look_at_viewport(self) -> Dict[str, Any]:
+        """
+        Instantly captures the current viewport.
+        Returns base64 image data and a lightweight map of visible interactive elements.
+        This provides the AI with immediate, real-time 'sight'.
+        """
+        if not self.page or self.page.is_closed():
+            return {"status": "error", "message": "No active page."}
 
-    async def stop_vision(self) -> str:
-        """Stop the background frame capture."""
-        if not self.vision_active:
-            return "Vision is not active."
-        
-        self.vision_active = False
-        if self.vision_task:
-            self.vision_task.cancel()
-            try:
-                await self.vision_task
-            except asyncio.CancelledError:
-                pass
-        return "Vision stopped."
-
-    async def _vision_loop(self):
-        """Background loop to capture screenshots for AI timeline."""
-        frame_idx = 0
-        while self.vision_active:
-            try:
-                if self.page and not self.page.is_closed():
-                    timestamp = int(time.time() * 1000)
-                    filename = f"frame_{timestamp}_{frame_idx}.jpg"
-                    path = os.path.join(self.vision_dir, filename)
-                    
-                    # Take a high-quality JPEG to preserve text readability
-                    await self.page.screenshot(path=path, type="jpeg", quality=85)
-
-                    
-                    self.vision_frames.append(path)
-                    
-                    # Manage sliding window (buffer limit)
-                    if len(self.vision_frames) > self.max_vision_frames:
-                        old_frame = self.vision_frames.pop(0)
-                        if os.path.exists(old_frame):
-                            os.remove(old_frame)
-                    
-                    frame_idx += 1
-            except Exception:
-                pass
+        try:
+            # 1. Take a fast, compressed JPEG snapshot
+            screenshot_bytes = await self.page.screenshot(type="jpeg", quality=60)
             
-            await asyncio.sleep(1.0 / self.vision_fps)
+            # 2. Extract quick DOM geometry for interactive elements
+            elements = await self.page.evaluate("""
+                () => {
+                    const interactives = Array.from(document.querySelectorAll('a, button, input, select, textarea, [role="button"], [tabindex]'));
+                    return interactives.map((el, i) => {
+                        const rect = el.getBoundingClientRect();
+                        // Only return if visible in current viewport
+                        if (rect.width > 0 && rect.height > 0 && rect.top >= 0 && rect.bottom <= window.innerHeight) {
+                            return {
+                                tag: el.tagName.toLowerCase(),
+                                text: el.innerText ? el.innerText.trim().substring(0, 30) : (el.value ? el.value.substring(0, 30) : ''),
+                                x: Math.round(rect.x),
+                                y: Math.round(rect.y),
+                                w: Math.round(rect.width),
+                                h: Math.round(rect.height)
+                            };
+                        }
+                        return null;
+                    }).filter(Boolean);
+                }
+            """)
+            
+            # 3. Get scroll progress
+            scroll = await self.page.evaluate("() => ({y: window.scrollY, max: document.body.scrollHeight - window.innerHeight})")
+            progress = round((scroll['y'] / max(1, scroll['max'])) * 100) if scroll['max'] > 0 else 0
 
-    async def get_vision_timeline(self, limit: int = 10) -> List[str]:
-        """Get the paths to the most recent N frames."""
-        return self.vision_frames[-limit:]
+            import base64
+            b64_image = base64.b64encode(screenshot_bytes).decode('utf-8')
+
+            return {
+                "status": "success",
+                "image_b64": b64_image,
+                "elements": elements,
+                "scroll_progress": progress
+            }
+        except Exception as e:
+            return {"status": "error", "message": str(e)}
 
     # ─── WAIT FOR SELECTOR ────────────────────────────────────────
 
