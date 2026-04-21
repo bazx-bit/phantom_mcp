@@ -124,7 +124,7 @@ class GhostBrowserManager:
 
     async def close(self):
         """Shuts down the daemon gracefully and cleans up session data."""
-        await self.stop_vision()
+
 
         # Close all tabs
         for name, page in self.tabs.items():
