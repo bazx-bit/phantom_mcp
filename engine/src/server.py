@@ -171,6 +171,12 @@ async def list_tools() -> list[types.Tool]:
             description="Extract all anchor links from the current page. Returns text and href for each link. Essential for crawling and sitemap discovery.",
             inputSchema={"type": "object", "properties": {}}
         ),
+        # Engine Status
+        types.Tool(
+            name="ghost_status",
+            description="Get the current operational status of the Site-Ghost engine, including the absolute paths to all work directories (screenshots, video, reports, clones). Use this if you cannot find your files.",
+            inputSchema={"type": "object", "properties": {}}
+        ),
         # Video Status
         types.Tool(
             name="ghost_video_status",
@@ -275,6 +281,25 @@ async def call_tool(name: str, arguments: dict) -> list[types.TextContent]:
     if name == "ghost_goto":
         result = await browser_manager.navigate(arguments["url"])
         return [types.TextContent(type="text", text=result)]
+
+    elif name == "ghost_status":
+        status = browser_manager.get_status()
+        lines = [
+            "👻 SITE-GHOST ENGINE STATUS",
+            f"CWD: {status['cwd']}",
+            f"Phantom Root: {status['phantom_root']}",
+            "",
+            "Work Directories:",
+            f"  📸 Screenshots: {status['directories']['screenshots']}",
+            f"  🎥 Video: {status['directories']['video']}",
+            f"  👁️ Vision: {status['directories']['vision']}",
+            f"  📊 Reports: {status['directories']['reports']}",
+            f"  📂 Clones: {status['directories']['clones']}",
+            "",
+            f"Active Tab: {status['active_tab'] or 'None'}",
+            f"Open Tabs: {status['tab_count']}"
+        ]
+        return [types.TextContent(type="text", text="\n".join(lines))]
 
     elif name == "ghost_map_dom":
         result = await browser_manager.map_dom()

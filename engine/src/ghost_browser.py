@@ -35,9 +35,12 @@ class GhostBrowserManager:
         self.screenshots_dir = os.path.join(os.getcwd(), '.ghost', 'screenshots')
         self.recordings_dir = os.path.join(os.getcwd(), '.ghost', 'video_feeds')
         self.vision_dir = os.path.join(os.getcwd(), '.ghost', 'vision')
-        os.makedirs(self.recordings_dir, exist_ok=True)
-        os.makedirs(self.screenshots_dir, exist_ok=True)
-        os.makedirs(self.vision_dir, exist_ok=True)
+        self.reports_dir = os.path.join(os.getcwd(), '.ghost', 'reports')
+        self.clones_dir = os.path.join(os.getcwd(), '.ghost', 'clones')
+
+        # Ensure the full phantom architecture exists
+        for d in [self.screenshots_dir, self.recordings_dir, self.vision_dir, self.reports_dir, self.clones_dir]:
+            os.makedirs(d, exist_ok=True)
 
         # Vision State
         self.vision_active = False
@@ -52,8 +55,6 @@ class GhostBrowserManager:
         self.active_tab: Optional[str] = None
 
         # Reporting & Audit State
-        self.reports_dir = os.path.join(os.getcwd(), '.ghost', 'reports')
-        os.makedirs(self.reports_dir, exist_ok=True)
         self.reporter = GhostReporter(self.reports_dir)
         self.deconstructor = GhostDeconstructor()
         self.last_audit_data: Optional[Dict[str, Any]] = None
@@ -864,3 +865,22 @@ class GhostBrowserManager:
             except Exception:
                 return "Video not active/available."
         return "No page active."
+
+    # ─── ENGINE STATUS ───────────────────────────────────────────
+
+    def get_status(self) -> Dict[str, Any]:
+        """Returns the current operational status and directory paths."""
+        return {
+            "status": "active",
+            "cwd": os.getcwd(),
+            "phantom_root": os.path.join(os.getcwd(), ".ghost"),
+            "directories": {
+                "screenshots": self.screenshots_dir,
+                "video": self.recordings_dir,
+                "vision": self.vision_dir,
+                "reports": self.reports_dir,
+                "clones": self.clones_dir
+            },
+            "active_tab": self.active_tab,
+            "tab_count": len(self.tabs)
+        }
