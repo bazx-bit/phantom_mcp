@@ -35,6 +35,8 @@ Every interaction is automatically **video-recorded** as `.webm` snippets. The A
 | JS injection | None | **Execute arbitrary JS on page** |
 
 - **Vision Engine.** Low-latency video capture and frame-by-frame visual analysis.
+- **Ultimate Ghost Container.** High-fidelity local cloning with Brain Surgeon Proxy to bypass CORS and React Router loops.
+- **3D Asset Ripper.** Automated extraction of WebGL assets, 3D models (GLB/GLTF), and interactive Lottie/GSAP states.
 - **Phantom Mirror.** High-fidelity UI cloning that captures 'Kinetic Soul' (animations, glow, design tokens).
 - **Forensic Reporter.** Professional standalone PDF generation with 2026 AI-readiness auditing.
 - **Deep Deconstructor.** Mathematical design system extraction (Palettes, Typography, Spacing).
