@@ -884,3 +884,131 @@ class GhostBrowserManager:
             "active_tab": self.active_tab,
             "tab_count": len(self.tabs)
         }
+
+    # ─── ULTIMATE GHOST CLONER (CONTAINER MODE) ───────────────────
+
+    async def steal_container(self, name: str) -> str:
+        """
+        Creates the Ultimate .ghost Container.
+        Bypasses SPA 404s using a Brain Surgeon proxy and bypasses CORS using a specialized App Launcher.
+        """
+        if not self.page: return "❌ No active page to clone."
+        try:
+            import re
+            clean_name = "".join(c for c in name if c.isalnum() or c in ('-', '_')) or "site"
+            container_dir = os.path.join(self.clones_dir, f"{clean_name}.ghost")
+            os.makedirs(container_dir, exist_ok=True)
+            
+            # Extract live URL and Path
+            current_url = self.page.url
+            from urllib.parse import urlparse
+            parsed_url = urlparse(current_url)
+            live_pathname = parsed_url.path or "/"
+
+            # Extract raw DOM with absolutized URLs (KEEP SCRIPTS INTACT)
+            stealer_js = """
+            (async () => {
+                const toAbs = (url) => { try { return new URL(url, document.baseURI).href; } catch(e) { return url; } };
+                let allCSS = '';
+                for (const sheet of Array.from(document.styleSheets)) {
+                    try { for (const rule of Array.from(sheet.cssRules)) { allCSS += rule.cssText + '\\n'; } } catch(e) {}
+                }
+                document.querySelectorAll('[src]').forEach(el => el.src = toAbs(el.getAttribute('src')));
+                document.querySelectorAll('[href]').forEach(el => el.href = toAbs(el.getAttribute('href')));
+                
+                return {
+                    head: document.head.innerHTML,
+                    body: document.body.innerHTML,
+                    css: allCSS
+                };
+            })()
+            """
+            data = await self.page.evaluate(stealer_js)
+            
+            # The Brain Surgeon Proxy: Tricks React Router into thinking it's on the live site
+            proxy_script = f"""
+            <script>
+                // GHOST BRAIN SURGEON PROXY
+                try {{
+                    window.history.replaceState({{}}, '', '{live_pathname}');
+                    console.log("[Ghost] React Router Proxy Activated: " + '{live_pathname}');
+                }} catch(e) {{}}
+            </script>
+            """
+            
+            html_content = f"""<!DOCTYPE html>
+<html lang="en">
+<head>
+    <base href="{current_url}">
+    {proxy_script}
+    {data.get('head', '')}
+    <style>{data.get('css', '')}</style>
+    <style>/* Ghost Visibility Fix */ body {{ opacity: 1 !important; visibility: visible !important; display: block !important; }}</style>
+</head>
+<body>
+    {data.get('body', '')}
+</body>
+</html>"""
+
+            # Save the index.html inside the container
+            index_path = os.path.join(container_dir, "index.html")
+            with open(index_path, "w", encoding="utf-8") as f:
+                f.write(html_content)
+                
+            # Create the Launcher Script (The Micro-Server)
+            launcher_code = f"""import http.server
+import socketserver
+import threading
+import time
+import subprocess
+import os
+import sys
+
+PORT = 8080
+DIRECTORY = os.path.dirname(os.path.abspath(__file__))
+
+class Handler(http.server.SimpleHTTPRequestHandler):
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, directory=DIRECTORY, **kwargs)
+
+httpd = socketserver.TCPServer(("", PORT), Handler)
+thread = threading.Thread(target=httpd.serve_forever)
+thread.daemon = True
+thread.start()
+
+print("👻 Ghost Container Booting on port", PORT)
+
+# Launch Chrome in App Mode with Web Security Disabled (Bypasses CORS for WebGL/React)
+chrome_paths = [
+    r"C:\\Program Files\\Google\\Chrome\\Application\\chrome.exe",
+    r"C:\\Program Files (x86)\\Google\\Chrome\\Application\\chrome.exe"
+]
+chrome_exe = next((p for p in chrome_paths if os.path.exists(p)), None)
+
+if chrome_exe:
+    user_data = os.path.join(DIRECTORY, ".chrome_profile")
+    cmd = [
+        chrome_exe,
+        f"--app=http://localhost:{{PORT}}",
+        "--disable-web-security",
+        f"--user-data-dir={{user_data}}",
+        "--no-sandbox"
+    ]
+    subprocess.Popen(cmd)
+    print("✨ Chrome App Launched. Press Ctrl+C to close server.")
+else:
+    print("⚠️ Chrome not found. Open http://localhost:8080 manually.")
+
+try:
+    while True: time.sleep(1)
+except KeyboardInterrupt:
+    print("Shutting down Ghost Container...")
+    httpd.shutdown()
+"""
+            launcher_path = os.path.join(container_dir, "ghost_run.py")
+            with open(launcher_path, "w", encoding="utf-8") as f:
+                f.write(launcher_code)
+                
+            return f"✅ ULTIMATE GHOST CONTAINER CREATED:\nPath: {container_dir}\nTo launch: Run 'python ghost_run.py' inside the folder."
+        except Exception as e:
+            return f"❌ CONTAINER STEAL FAILED: {str(e)}"
