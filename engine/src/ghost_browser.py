@@ -1012,3 +1012,134 @@ except KeyboardInterrupt:
             return f"✅ ULTIMATE GHOST CONTAINER CREATED:\nPath: {container_dir}\nTo launch: Run 'python ghost_run.py' inside the folder."
         except Exception as e:
             return f"❌ CONTAINER STEAL FAILED: {str(e)}"
+
+    # ─── KINETIC DNA EXTRACTOR ─────────────────────────────────────
+
+    async def extract_kinetic_dna(self) -> Dict[str, Any]:
+        """
+        Extracts the complete 'Kinetic DNA' of a page:
+        - All CSS animations (name, duration, easing, delay, iteration)
+        - All CSS transitions (property, duration, easing, delay)
+        - GSAP timeline detection
+        - Framer Motion / ScrollTrigger detection
+        - All @keyframes rules with their frame definitions
+        - All active CSS transforms on elements
+        This gives the AI the exact recipe to replicate any site's motion design.
+        """
+        if not self.page:
+            return {"status": "error", "message": "No active page."}
+
+        try:
+            dna = await self.page.evaluate("""
+                () => {
+                    const results = {
+                        css_animations: [],
+                        css_transitions: [],
+                        gsap_timelines: [],
+                        transform_chains: [],
+                        keyframes: [],
+                        libraries_detected: [],
+                        total_animated: 0,
+                        total_transitions: 0
+                    };
+
+                    // 1. Detect animation libraries
+                    if (window.gsap || window.TweenMax || window.TweenLite) results.libraries_detected.push('GSAP');
+                    if (window.__framer_importModule || document.querySelector('[data-framer-appear-id]')) results.libraries_detected.push('Framer Motion');
+                    if (window.ScrollTrigger || (window.gsap && window.gsap.utils)) results.libraries_detected.push('ScrollTrigger');
+                    if (window.anime) results.libraries_detected.push('Anime.js');
+                    if (window.AOS) results.libraries_detected.push('AOS');
+                    if (window.LocomotiveScroll) results.libraries_detected.push('Locomotive Scroll');
+                    if (window.Lenis) results.libraries_detected.push('Lenis');
+                    if (document.querySelector('[data-scroll]')) results.libraries_detected.push('data-scroll (Custom)');
+                    if (window.THREE) results.libraries_detected.push('Three.js / WebGL');
+                    if (window.Lottie || window.lottie) results.libraries_detected.push('Lottie');
+
+                    // 2. Extract CSS animations from all visible elements
+                    const allElements = document.querySelectorAll('*');
+                    for (const el of allElements) {
+                        const cs = window.getComputedStyle(el);
+                        const animName = cs.animationName;
+                        const transProp = cs.transitionProperty;
+                        const transform = cs.transform;
+                        const tag = el.tagName.toLowerCase();
+                        const id = el.id ? '#' + el.id : '';
+                        const cls = el.className && typeof el.className === 'string' ? '.' + el.className.split(' ').filter(Boolean).slice(0, 2).join('.') : '';
+                        const label = (tag + id + cls).substring(0, 60);
+
+                        // CSS Animations
+                        if (animName && animName !== 'none') {
+                            results.css_animations.push({
+                                element: label,
+                                name: animName,
+                                duration: cs.animationDuration,
+                                easing: cs.animationTimingFunction,
+                                delay: cs.animationDelay,
+                                iteration: cs.animationIterationCount,
+                                direction: cs.animationDirection,
+                                fill: cs.animationFillMode
+                            });
+                            results.total_animated++;
+                        }
+
+                        // CSS Transitions
+                        if (transProp && transProp !== 'all' && transProp !== 'none' && cs.transitionDuration !== '0s') {
+                            results.css_transitions.push({
+                                element: label,
+                                property: transProp.substring(0, 80),
+                                duration: cs.transitionDuration,
+                                easing: cs.transitionTimingFunction,
+                                delay: cs.transitionDelay
+                            });
+                            results.total_transitions++;
+                        }
+
+                        // Active Transforms
+                        if (transform && transform !== 'none') {
+                            results.transform_chains.push({
+                                element: label,
+                                transform: transform.substring(0, 120)
+                            });
+                        }
+                    }
+
+                    // 3. Extract @keyframes from all stylesheets
+                    for (const sheet of Array.from(document.styleSheets)) {
+                        try {
+                            for (const rule of Array.from(sheet.cssRules)) {
+                                if (rule.type === CSSRule.KEYFRAMES_RULE) {
+                                    const frames = [];
+                                    for (const kf of Array.from(rule.cssRules)) {
+                                        frames.push(kf.keyText + ': ' + kf.style.cssText.substring(0, 100));
+                                    }
+                                    results.keyframes.push({
+                                        name: rule.name,
+                                        frames: frames.join(' | ')
+                                    });
+                                }
+                            }
+                        } catch(e) {} // CORS-protected sheets
+                    }
+
+                    // 4. Detect GSAP timelines (if GSAP is loaded)
+                    if (window.gsap) {
+                        try {
+                            const globalTL = gsap.globalTimeline;
+                            if (globalTL && globalTL.getChildren) {
+                                const children = globalTL.getChildren(true, true, true);
+                                for (const tween of children.slice(0, 20)) {
+                                    const info = `target: ${tween.targets ? tween.targets().length + ' elements' : '?'} | dur: ${tween.duration ? tween.duration() + 's' : '?'} | ease: ${tween.vars ? (tween.vars.ease || 'default') : '?'}`;
+                                    results.gsap_timelines.push(info);
+                                }
+                            }
+                        } catch(e) {
+                            results.gsap_timelines.push('GSAP detected but timeline inspection blocked.');
+                        }
+                    }
+
+                    return results;
+                }
+            """)
+            return dna
+        except Exception as e:
+            return {"status": "error", "message": str(e)}

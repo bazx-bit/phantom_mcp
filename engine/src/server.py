@@ -269,6 +269,24 @@ async def list_tools() -> list[types.Tool]:
                 "required": ["url_a", "url_b"]
             }
         ),
+        # ─── PHANTOM FORGE: CLONE & DNA TOOLS ─────────────────────
+        types.Tool(
+            name="ghost_clone_engine",
+            description="[PHANTOM FORGE] Clone any website into a self-contained .ghost container. Handles SPAs, React Router, CORS, WebGL. Creates a local micro-server with Brain Surgeon proxy. The AI can then study or modify the clone. Use this when you need to capture a site's full architecture for offline analysis or asset extraction.",
+            inputSchema={
+                "type": "object",
+                "properties": {
+                    "url": {"type": "string", "description": "The URL to clone."},
+                    "name": {"type": "string", "description": "Short name for the .ghost container (e.g. 'moooi', 'stripe')."}
+                },
+                "required": ["url", "name"]
+            }
+        ),
+        types.Tool(
+            name="ghost_extract_dna",
+            description="[PHANTOM FORGE] Extract the 'Kinetic DNA' of the current page. Analyzes all CSS animations, transitions, GSAP timelines, scroll-triggered effects, and Framer Motion states. Returns the exact easing curves, durations, delays, and transform chains so the AI can learn and replicate the animation physics in its own code. This is how you steal the 'soul' of a website's motion design.",
+            inputSchema={"type": "object", "properties": {}}
+        ),
     ]
 
 
@@ -605,6 +623,57 @@ async def call_tool(name: str, arguments: dict) -> list[types.TextContent]:
         lines.append(f"  Site B: {b['hero_screenshot']}")
         lines.append("═" * 60)
 
+        return [types.TextContent(type="text", text="\n".join(lines))]
+
+    # ─── PHANTOM FORGE DISPATCHERS ────────────────────────────────
+
+    elif name == "ghost_clone_engine":
+        url = arguments["url"]
+        clone_name = arguments["name"]
+        # Navigate first, then steal
+        await browser_manager.navigate(url)
+        await asyncio.sleep(3)  # Let SPAs hydrate fully
+        result = await browser_manager.steal_container(clone_name)
+        return [types.TextContent(type="text", text=result)]
+
+    elif name == "ghost_extract_dna":
+        result = await browser_manager.extract_kinetic_dna()
+        if result.get("status") == "error":
+            return [types.TextContent(type="text", text=f"DNA Extraction failed: {result['message']}")]
+
+        lines = [
+            "🧬 KINETIC DNA EXTRACTION COMPLETE",
+            "═" * 50,
+            f"Total Animated Elements: {result['total_animated']}",
+            f"Total Transitions Found: {result['total_transitions']}",
+            f"Animation Libraries Detected: {', '.join(result['libraries_detected']) or 'None (Pure CSS)'}",
+            "",
+            "─── CSS ANIMATIONS ───",
+        ]
+        for anim in result.get("css_animations", [])[:15]:
+            lines.append(f"  🌀 [{anim['element']}] name: {anim['name']} | dur: {anim['duration']} | ease: {anim['easing']} | delay: {anim['delay']}")
+
+        lines.append("")
+        lines.append("─── CSS TRANSITIONS ───")
+        for tr in result.get("css_transitions", [])[:15]:
+            lines.append(f"  ⚡ [{tr['element']}] prop: {tr['property']} | dur: {tr['duration']} | ease: {tr['easing']}")
+
+        lines.append("")
+        lines.append("─── GSAP / SCROLL TRIGGERS ───")
+        for gs in result.get("gsap_timelines", [])[:10]:
+            lines.append(f"  🎬 {gs}")
+
+        lines.append("")
+        lines.append("─── TRANSFORM CHAINS ───")
+        for tf in result.get("transform_chains", [])[:10]:
+            lines.append(f"  📐 [{tf['element']}] transform: {tf['transform']}")
+
+        lines.append("")
+        lines.append("─── KEYFRAME RECIPES ───")
+        for kf in result.get("keyframes", [])[:10]:
+            lines.append(f"  🎨 @keyframes {kf['name']}: {kf['frames']}")
+
+        lines.append("═" * 50)
         return [types.TextContent(type="text", text="\n".join(lines))]
 
     raise ValueError(f"Unknown tool: {name}")
