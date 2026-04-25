@@ -3,6 +3,15 @@ import os
 import sys
 import json
 
+# Ensure UTF-8 output on all systems
+if sys.stdout.encoding != 'utf-8':
+    try:
+        import codecs
+        sys.stdout = codecs.getwriter('utf-8')(sys.stdout.buffer, 'strict')
+        sys.stderr = codecs.getwriter('utf-8')(sys.stderr.buffer, 'strict')
+    except Exception:
+        pass
+
 # Add engine/src to path so we can import ghost_browser
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "engine", "src"))
 from ghost_browser import GhostBrowserManager

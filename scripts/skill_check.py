@@ -1,6 +1,15 @@
 import os
 import sys
 
+# Ensure UTF-8 output on all systems
+if sys.stdout.encoding != 'utf-8':
+    try:
+        import codecs
+        sys.stdout = codecs.getwriter('utf-8')(sys.stdout.buffer, 'strict')
+        sys.stderr = codecs.getwriter('utf-8')(sys.stderr.buffer, 'strict')
+    except Exception:
+        pass
+
 def check_skill(filepath):
     """Validates a single .md skill file."""
     with open(filepath, "r", encoding="utf-8") as f:
