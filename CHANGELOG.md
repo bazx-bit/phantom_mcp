@@ -2,6 +2,25 @@
 
 All notable changes to Site-Ghost are documented in this file.
 
+## [1.2.0] - 2026-04-25
+
+### Added — Phantom Forge Release
+- **Phantom Architect Skill**: Agentic developer persona for high-fidelity cloning vs clean development decisions.
+- **Creative Director Skill**: Design-heavy persona focused on award-winning aesthetics and kinetic DNA.
+- **DNA Extractor Tool** (`ghost_extract_dna`): Captures exact easing, duration, and GSAP timeline physics from any site.
+- **Clone Engine Tool** (`ghost_clone_engine`): Full SPA cloning with Brain Surgeon proxy for offline analysis.
+- **ForgeX Showcase**: Cinematic HTML demonstration of engine capabilities.
+
+### Fixed
+- **Windows UTF-8 Encoding**: Added explicit encoding support to scripts/tests to prevent `UnicodeEncodeError` in Windows terminals.
+- **Skill Quality Gate**: Updated all core skills with mandatory `Prime Directive`, `Workflow`, and `Scoring Rubric` headers.
+
+## [1.1.0] - 2026-04-21
+
+### Added
+- **Agentic Eye Deployment**: Finalized high-fidelity vision integration.
+- **ghost_status tool**: Track daemon health and resource usage.
+
 ## [1.0.0] - 2026-04-16
 
 ### Added — Core Engine
