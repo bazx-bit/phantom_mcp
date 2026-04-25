@@ -4,7 +4,7 @@
 
 ### The AI-Powered Agentic Browser Auditor
 
-**17 MCP Tools · 15 Expert Skills · Playwright Video Recording · Precision DOM Mapping**
+**28 MCP Tools · 15 Expert Skills · Playwright Video Recording · Precision DOM Mapping**
 
 [![Python](https://img.shields.io/badge/Python-3.10+-3776AB.svg?style=for-the-badge&logo=python&logoColor=white)](https://python.org)
 [![Playwright](https://img.shields.io/badge/Engine-Playwright-2EAD33.svg?style=for-the-badge&logo=playwright&logoColor=white)](https://playwright.dev)
