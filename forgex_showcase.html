@@ -1,0 +1,328 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>FORGEX — Design Intelligence Engine</title>
+    <link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,300;0,400;0,600;1,300&family=Inter:wght@300;400;700;900&display=swap" rel="stylesheet">
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/gsap/3.12.2/gsap.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/gsap/3.12.2/ScrollTrigger.min.js"></script>
+    <style>
+        :root {
+            --black: #0a0a0a; --deep: #111118; --surface: #161621;
+            --beige: rgb(227, 217, 198); --gold: #c9a96e; --red: #ff4f36;
+            --teal: #4dbf9d; --purple: #a78bfa; --white: #f0ece6;
+            --serif: 'Cormorant Garamond', serif; --sans: 'Inter', sans-serif;
+        }
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        html { scroll-behavior: smooth; }
+        body { background: var(--black); color: var(--white); font-family: var(--sans); overflow-x: hidden; cursor: default; }
+        ::selection { background: var(--gold); color: var(--black); }
+
+        /* --- CUSTOM CURSOR --- */
+        .cursor { position: fixed; width: 20px; height: 20px; border: 2px solid var(--beige); border-radius: 50%; pointer-events: none; z-index: 9999; transition: transform 0.15s ease, border-color 0.3s; mix-blend-mode: difference; }
+        .cursor-dot { position: fixed; width: 5px; height: 5px; background: var(--beige); border-radius: 50%; pointer-events: none; z-index: 9999; }
+
+        /* --- PRELOADER --- */
+        #preloader { position: fixed; inset: 0; background: var(--black); z-index: 10000; display: flex; flex-direction: column; justify-content: center; align-items: center; }
+        .loader-text { font-family: var(--serif); font-size: clamp(24px, 4vw, 48px); color: var(--beige); letter-spacing: 0.3em; text-transform: uppercase; }
+        .loader-bar { width: 200px; height: 2px; background: rgba(255,255,255,0.1); margin-top: 30px; overflow: hidden; border-radius: 2px; }
+        .loader-fill { width: 0%; height: 100%; background: var(--gold); }
+
+        /* --- NAV --- */
+        nav { position: fixed; top: 0; width: 100%; padding: 30px 5%; display: flex; justify-content: space-between; align-items: center; z-index: 100; mix-blend-mode: difference; }
+        .logo { font-family: var(--serif); font-size: 28px; font-weight: 300; letter-spacing: 0.15em; color: var(--white); }
+        .nav-links { display: flex; gap: 40px; }
+        .nav-links a { color: var(--white); text-decoration: none; font-size: 13px; letter-spacing: 0.1em; text-transform: uppercase; opacity: 0.7; transition: opacity 0.3s; }
+        .nav-links a:hover { opacity: 1; }
+
+        /* --- SECTIONS --- */
+        section { position: relative; width: 100vw; overflow: hidden; }
+
+        /* S1: HERO */
+        #hero { height: 100vh; display: flex; justify-content: center; align-items: center; }
+        .hero-bg { position: absolute; inset: 0; background: url('https://images.unsplash.com/photo-1618221195710-dd6b41faaea6?w=2000&q=80') center/cover; opacity: 0.35; }
+        .hero-grain { position: absolute; inset: 0; background: url('data:image/svg+xml,<svg viewBox="0 0 256 256" xmlns="http://www.w3.org/2000/svg"><filter id="n"><feTurbulence type="fractalNoise" baseFrequency="0.9" numOctaves="4" stitchTiles="stitch"/></filter><rect width="100%" height="100%" filter="url(%23n)" opacity="0.04"/></svg>'); opacity: 0.5; }
+        .hero-overlay { position: absolute; inset: 0; background: linear-gradient(180deg, rgba(10,10,10,0.3), rgba(10,10,10,0.95)); }
+        .hero-content { position: relative; z-index: 5; text-align: center; }
+        .hero-tag { font-size: 13px; letter-spacing: 0.4em; text-transform: uppercase; color: var(--gold); margin-bottom: 30px; display: inline-block; }
+        .hero-title { font-family: var(--serif); font-size: clamp(60px, 12vw, 180px); font-weight: 300; line-height: 0.9; letter-spacing: -0.03em; }
+        .hero-title em { font-style: italic; color: var(--beige); }
+        .hero-sub { font-size: 16px; color: rgba(240,236,230,0.5); margin-top: 40px; font-weight: 300; letter-spacing: 0.05em; }
+        .scroll-hint { position: absolute; bottom: 40px; left: 50%; transform: translateX(-50%); display: flex; flex-direction: column; align-items: center; gap: 10px; z-index: 5; }
+        .scroll-line { width: 1px; height: 60px; background: linear-gradient(to bottom, var(--gold), transparent); animation: scrollPulse 2s infinite; }
+        @keyframes scrollPulse { 0%,100% { opacity: 0.3; } 50% { opacity: 1; } }
+
+        /* S2: STICKY PIN */
+        #sticky-section { height: 400vh; }
+        .sticky-inner { position: sticky; top: 0; height: 100vh; display: flex; justify-content: center; align-items: center; overflow: hidden; }
+        .sticky-bg { position: absolute; inset: 0; }
+        .sticky-bg-1 { background: radial-gradient(ellipse at 30% 50%, rgba(167,139,250,0.15), transparent 60%); }
+        .sticky-bg-2 { background: radial-gradient(ellipse at 70% 40%, rgba(201,169,110,0.1), transparent 60%); }
+        .sticky-word { font-family: var(--serif); font-size: clamp(40px, 8vw, 120px); font-weight: 300; letter-spacing: -0.02em; text-align: center; position: absolute; }
+        .sticky-counter { position: absolute; top: 40px; right: 5%; font-size: 120px; font-family: var(--serif); font-weight: 300; color: rgba(201,169,110,0.1); }
+
+        /* S3: HORIZONTAL SCROLL */
+        #h-scroll { height: 400vh; }
+        .h-scroll-inner { position: sticky; top: 0; height: 100vh; display: flex; align-items: center; overflow: hidden; }
+        .h-scroll-track { display: flex; gap: 40px; padding: 0 5%; will-change: transform; }
+        .h-card { flex: none; width: 500px; height: 70vh; border-radius: 20px; overflow: hidden; position: relative; }
+        .h-card img { width: 100%; height: 100%; object-fit: cover; transition: transform 0.6s cubic-bezier(0.25,0.46,0.45,0.94); }
+        .h-card:hover img { transform: scale(1.08); }
+        .h-card-overlay { position: absolute; inset: 0; background: linear-gradient(to top, rgba(10,10,10,0.9) 0%, transparent 50%); display: flex; flex-direction: column; justify-content: flex-end; padding: 40px; }
+        .h-card-title { font-family: var(--serif); font-size: 32px; font-weight: 300; }
+        .h-card-tag { font-size: 11px; letter-spacing: 0.15em; text-transform: uppercase; color: var(--gold); margin-bottom: 10px; }
+
+        /* S4: STATS */
+        #stats { min-height: 60vh; display: flex; justify-content: center; align-items: center; padding: 120px 5%; background: var(--deep); }
+        .stats-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 60px; text-align: center; width: 100%; max-width: 1200px; }
+        .stat-num { font-family: var(--serif); font-size: clamp(48px, 6vw, 96px); font-weight: 300; color: var(--beige); line-height: 1; }
+        .stat-label { font-size: 12px; letter-spacing: 0.15em; text-transform: uppercase; color: rgba(240,236,230,0.4); margin-top: 15px; }
+        .stat-line { width: 40px; height: 1px; background: var(--gold); margin: 20px auto 0; opacity: 0.4; }
+
+        /* S5: SPLIT */
+        #split { min-height: 100vh; display: grid; grid-template-columns: 1fr 1fr; }
+        .split-img { overflow: hidden; }
+        .split-img img { width: 100%; height: 100%; object-fit: cover; }
+        .split-text { display: flex; flex-direction: column; justify-content: center; padding: 80px; background: var(--surface); }
+        .split-text h2 { font-family: var(--serif); font-size: clamp(36px, 4vw, 64px); font-weight: 300; line-height: 1.15; letter-spacing: -0.02em; margin-bottom: 30px; }
+        .split-text p { font-size: 16px; line-height: 1.8; color: rgba(240,236,230,0.5); font-weight: 300; max-width: 500px; }
+
+        /* S6: TEXT REVEAL */
+        #text-reveal { min-height: 100vh; display: flex; justify-content: center; align-items: center; padding: 100px 10%; background: var(--black); }
+        .reveal-text { font-family: var(--serif); font-size: clamp(32px, 5vw, 72px); font-weight: 300; line-height: 1.3; text-align: center; }
+        .reveal-text .word { display: inline-block; margin: 0 8px; opacity: 0.08; }
+
+        /* S7: GLASS CARDS */
+        #glass { min-height: 100vh; padding: 120px 5%; background: var(--deep); position: relative; }
+        .glass-title { font-family: var(--serif); font-size: clamp(36px, 5vw, 72px); font-weight: 300; text-align: center; margin-bottom: 80px; }
+        .glass-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 30px; max-width: 1200px; margin: 0 auto; }
+        .glass-card { background: rgba(255,255,255,0.03); backdrop-filter: blur(20px); border: 1px solid rgba(255,255,255,0.06); border-radius: 24px; padding: 50px 40px; transition: transform 0.5s cubic-bezier(0.25,0.46,0.45,0.94), border-color 0.5s; }
+        .glass-card:hover { transform: translateY(-10px); border-color: rgba(201,169,110,0.3); }
+        .glass-icon { font-size: 40px; margin-bottom: 25px; }
+        .glass-card h3 { font-family: var(--serif); font-size: 28px; font-weight: 300; margin-bottom: 15px; }
+        .glass-card p { font-size: 14px; line-height: 1.7; color: rgba(240,236,230,0.4); }
+
+        /* S8: PARALLAX DEPTH */
+        #parallax { height: 100vh; display: flex; justify-content: center; align-items: center; position: relative; }
+        .parallax-layer { position: absolute; inset: 0; background-size: cover; background-position: center; }
+        .parallax-far { background-image: url('https://images.unsplash.com/photo-1541701494587-cb58502866ab?w=2000&q=80'); opacity: 0.5; }
+        .parallax-mid { background: radial-gradient(circle at center, rgba(201,169,110,0.2), transparent 70%); }
+        .parallax-text { position: relative; z-index: 5; text-align: center; }
+        .parallax-text h2 { font-family: var(--serif); font-size: clamp(48px, 8vw, 130px); font-weight: 300; letter-spacing: -0.03em; }
+
+        /* S9: FOOTER */
+        #footer { min-height: 60vh; display: flex; flex-direction: column; justify-content: center; align-items: center; padding: 100px 5%; background: var(--black); border-top: 1px solid rgba(255,255,255,0.05); text-align: center; }
+        .footer-logo { font-family: var(--serif); font-size: clamp(48px, 8vw, 120px); font-weight: 300; letter-spacing: 0.1em; color: var(--beige); margin-bottom: 30px; }
+        .footer-sub { font-size: 14px; color: rgba(240,236,230,0.3); letter-spacing: 0.1em; }
+        .footer-line { width: 80px; height: 1px; background: var(--gold); margin: 40px auto; opacity: 0.3; }
+        .footer-copy { font-size: 11px; color: rgba(240,236,230,0.2); letter-spacing: 0.05em; }
+
+        /* RESPONSIVE */
+        @media (max-width: 768px) {
+            .stats-grid { grid-template-columns: repeat(2, 1fr); gap: 40px; }
+            .glass-grid { grid-template-columns: 1fr; }
+            #split { grid-template-columns: 1fr; }
+            .split-text { padding: 60px 30px; }
+            .h-card { width: 85vw; }
+            .nav-links { display: none; }
+            .cursor, .cursor-dot { display: none; }
+        }
+    </style>
+</head>
+<body>
+
+    <!-- PRELOADER -->
+    <div id="preloader">
+        <div class="loader-text">FORGEX</div>
+        <div class="loader-bar"><div class="loader-fill"></div></div>
+    </div>
+
+    <!-- CURSOR -->
+    <div class="cursor"></div>
+    <div class="cursor-dot"></div>
+
+    <!-- NAV -->
+    <nav>
+        <div class="logo">FORGEX</div>
+        <div class="nav-links">
+            <a href="#hero">Home</a><a href="#sticky-section">Vision</a><a href="#h-scroll">Work</a><a href="#glass">Services</a>
+        </div>
+    </nav>
+
+    <!-- S1: HERO -->
+    <section id="hero">
+        <div class="hero-bg"></div><div class="hero-grain"></div><div class="hero-overlay"></div>
+        <div class="hero-content">
+            <span class="hero-tag">Design Intelligence Engine</span>
+            <h1 class="hero-title">We Don't<br><em>Design.</em><br>We Forge.</h1>
+            <p class="hero-sub">Websites that feel like they cost half a million.</p>
+        </div>
+        <div class="scroll-hint"><div class="scroll-line"></div></div>
+    </section>
+
+    <!-- S2: STICKY PIN -->
+    <section id="sticky-section">
+        <div class="sticky-inner">
+            <div class="sticky-bg sticky-bg-1"></div><div class="sticky-bg sticky-bg-2"></div>
+            <div class="sticky-counter" id="stickyCounter">01</div>
+            <div class="sticky-word" id="stickyWord">VISION</div>
+        </div>
+    </section>
+
+    <!-- S3: HORIZONTAL SCROLL -->
+    <section id="h-scroll">
+        <div class="h-scroll-inner">
+            <div class="h-scroll-track">
+                <div class="h-card"><img src="https://images.unsplash.com/photo-1600607686527-6fb886090705?w=800&q=80" alt=""><div class="h-card-overlay"><span class="h-card-tag">Luxury Interiors</span><div class="h-card-title">Moooi Clone</div></div></div>
+                <div class="h-card"><img src="https://images.unsplash.com/photo-1574169208507-84376144848b?w=800&q=80" alt=""><div class="h-card-overlay"><span class="h-card-tag">Abstract Motion</span><div class="h-card-title">Kinetic DNA</div></div></div>
+                <div class="h-card"><img src="https://images.unsplash.com/photo-1618221195710-dd6b41faaea6?w=800&q=80" alt=""><div class="h-card-overlay"><span class="h-card-tag">Architecture</span><div class="h-card-title">Ghost Container</div></div></div>
+                <div class="h-card"><img src="https://images.unsplash.com/photo-1600210492486-724fe5c67fb0?w=800&q=80" alt=""><div class="h-card-overlay"><span class="h-card-tag">Spatial Design</span><div class="h-card-title">Phantom Forge</div></div></div>
+                <div class="h-card"><img src="https://images.unsplash.com/photo-1541701494587-cb58502866ab?w=800&q=80" alt=""><div class="h-card-overlay"><span class="h-card-tag">Experimental</span><div class="h-card-title">Brain Surgeon</div></div></div>
+            </div>
+        </div>
+    </section>
+
+    <!-- S4: STATS -->
+    <section id="stats">
+        <div class="stats-grid">
+            <div class="stat"><div class="stat-num" data-target="47">0</div><div class="stat-label">Sites Cloned</div><div class="stat-line"></div></div>
+            <div class="stat"><div class="stat-num" data-target="12">0</div><div class="stat-label">DNA Extractions</div><div class="stat-line"></div></div>
+            <div class="stat"><div class="stat-num" data-target="892">0</div><div class="stat-label">Animations Stolen</div><div class="stat-line"></div></div>
+            <div class="stat"><div class="stat-num" data-target="100">0</div><div class="stat-label">Percent Lethal</div><div class="stat-line"></div></div>
+        </div>
+    </section>
+
+    <!-- S5: SPLIT -->
+    <section id="split">
+        <div class="split-img"><img src="https://images.unsplash.com/photo-1600607686527-6fb886090705?w=1200&q=80" alt="" class="reveal"></div>
+        <div class="split-text">
+            <h2 class="reveal">The Ghost Engine doesn't clone websites.<br>It <em style="color:var(--gold)">devours</em> them.</h2>
+            <p class="reveal">We extract the Kinetic DNA — every easing curve, every parallax ratio, every scroll-triggered keyframe — and use it to build something the original designers couldn't imagine.</p>
+        </div>
+    </section>
+
+    <!-- S6: TEXT REVEAL -->
+    <section id="text-reveal">
+        <div class="reveal-text" id="revealContainer"></div>
+    </section>
+
+    <!-- S7: GLASS CARDS -->
+    <section id="glass">
+        <h2 class="glass-title reveal">The <em style="color:var(--gold)">Arsenal</em></h2>
+        <div class="glass-grid">
+            <div class="glass-card reveal"><div class="glass-icon">👻</div><h3>Ghost Clone</h3><p>Full SPA cloning with Brain Surgeon proxy. Bypasses React Router, CORS, and WebGL security.</p></div>
+            <div class="glass-card reveal"><div class="glass-icon">🧬</div><h3>DNA Extractor</h3><p>Steals the exact easing curves, durations, and GSAP timelines from any award-winning site.</p></div>
+            <div class="glass-card reveal"><div class="glass-icon">🎨</div><h3>Creative Director</h3><p>An AI persona trained to study 3 reference sites, mix their DNA, and build something that destroys the industry.</p></div>
+        </div>
+    </section>
+
+    <!-- S8: PARALLAX -->
+    <section id="parallax">
+        <div class="parallax-layer parallax-far"></div>
+        <div class="parallax-layer parallax-mid"></div>
+        <div class="parallax-text"><h2>Built to be<br><em style="color:var(--gold)">Impossible.</em></h2></div>
+    </section>
+
+    <!-- S9: FOOTER -->
+    <section id="footer">
+        <div class="footer-logo">FORGEX</div>
+        <div class="footer-sub">DESIGN INTELLIGENCE ENGINE</div>
+        <div class="footer-line"></div>
+        <div class="footer-copy">© 2026 ForgeX by Raj. Engineered in silence.</div>
+    </section>
+
+    <script>
+        gsap.registerPlugin(ScrollTrigger);
+
+        // PRELOADER
+        const loaderTL = gsap.timeline();
+        loaderTL.to(".loader-fill", { width: "100%", duration: 1.8, ease: "power2.inOut" })
+        .to("#preloader", { yPercent: -100, duration: 0.8, ease: "power4.inOut", delay: 0.2 })
+        .set("#preloader", { display: "none" });
+
+        // CUSTOM CURSOR
+        const cursor = document.querySelector('.cursor');
+        const dot = document.querySelector('.cursor-dot');
+        document.addEventListener('mousemove', e => {
+            gsap.to(cursor, { x: e.clientX - 10, y: e.clientY - 10, duration: 0.5, ease: "power3.out" });
+            gsap.to(dot, { x: e.clientX - 2.5, y: e.clientY - 2.5, duration: 0.1 });
+        });
+
+        // S1: HERO
+        const heroTL = gsap.timeline({ delay: 2.2 });
+        heroTL.from(".hero-tag", { y: 30, opacity: 0, duration: 1, ease: "power3.out" })
+        .from(".hero-title", { y: 80, opacity: 0, duration: 1.5, ease: "power4.out" }, "-=0.6")
+        .from(".hero-sub", { y: 20, opacity: 0, duration: 1, ease: "power3.out" }, "-=0.8")
+        .from(".scroll-hint", { opacity: 0, duration: 1 }, "-=0.5");
+
+        gsap.to(".hero-bg", { yPercent: 30, scale: 1.1, scrollTrigger: { trigger: "#hero", start: "top top", end: "bottom top", scrub: 1 }});
+
+        // S2: STICKY PIN — Word morph
+        const words = ["VISION", "EXTRACT", "FORGE", "DESTROY"];
+        const stickyWord = document.getElementById("stickyWord");
+        const stickyCounter = document.getElementById("stickyCounter");
+        words.forEach((word, i) => {
+            ScrollTrigger.create({
+                trigger: "#sticky-section",
+                start: () => `${i * 25}% top`,
+                end: () => `${(i + 1) * 25}% top`,
+                onEnter: () => {
+                    gsap.to(stickyWord, { opacity: 0, y: -30, duration: 0.3, onComplete: () => {
+                        stickyWord.textContent = word;
+                        gsap.fromTo(stickyWord, { opacity: 0, y: 30 }, { opacity: 1, y: 0, duration: 0.5, ease: "power3.out" });
+                    }});
+                    stickyCounter.textContent = "0" + (i + 1);
+                },
+                onEnterBack: () => {
+                    stickyWord.textContent = word;
+                    stickyCounter.textContent = "0" + (i + 1);
+                }
+            });
+        });
+
+        // S3: HORIZONTAL SCROLL
+        const track = document.querySelector(".h-scroll-track");
+        gsap.to(track, {
+            x: () => -(track.scrollWidth - window.innerWidth + 80),
+            ease: "none",
+            scrollTrigger: { trigger: "#h-scroll", start: "top top", end: () => "+=" + track.scrollWidth, scrub: 1, pin: ".h-scroll-inner" }
+        });
+
+        // S4: STATS COUNTER
+        document.querySelectorAll(".stat-num").forEach(el => {
+            const target = parseInt(el.dataset.target);
+            gsap.to(el, { innerText: target, duration: 2, ease: "power1.out", snap: { innerText: 1 },
+                scrollTrigger: { trigger: "#stats", start: "top 80%" }
+            });
+        });
+
+        // S5: SPLIT
+        gsap.from("#split .split-img img", { x: -100, opacity: 0, duration: 1.5, ease: "power3.out", scrollTrigger: { trigger: "#split", start: "top 70%" }});
+        gsap.from("#split .split-text .reveal", { x: 100, opacity: 0, duration: 1.2, ease: "power3.out", stagger: 0.2, scrollTrigger: { trigger: "#split", start: "top 70%" }});
+
+        // S6: TEXT REVEAL
+        const sentence = "We study the masters. We steal their physics. We mix their DNA. We build something that makes them obsolete.";
+        const container = document.getElementById("revealContainer");
+        sentence.split(" ").forEach(w => { const span = document.createElement("span"); span.className = "word"; span.textContent = w; container.appendChild(span); });
+        gsap.to("#revealContainer .word", { opacity: 1, stagger: 0.08, scrollTrigger: { trigger: "#text-reveal", start: "top 60%", end: "bottom 40%", scrub: 1 }});
+
+        // S7: GLASS CARDS
+        gsap.from(".glass-card", { y: 80, opacity: 0, duration: 1.2, ease: "power3.out", stagger: 0.15, scrollTrigger: { trigger: "#glass", start: "top 70%" }});
+
+        // S8: PARALLAX
+        gsap.to(".parallax-far", { yPercent: 20, scrollTrigger: { trigger: "#parallax", start: "top bottom", end: "bottom top", scrub: 1 }});
+        gsap.from(".parallax-text h2", { y: 60, opacity: 0, duration: 1.5, ease: "power3.out", scrollTrigger: { trigger: "#parallax", start: "top 60%" }});
+
+        // S9: FOOTER
+        gsap.from(".footer-logo", { y: 40, opacity: 0, duration: 1.5, ease: "power3.out", scrollTrigger: { trigger: "#footer", start: "top 80%" }});
+
+        // GLOBAL REVEALS
+        gsap.utils.toArray(".reveal").forEach(el => {
+            if (!el.closest("#split") && !el.closest(".glass-grid")) {
+                gsap.from(el, { y: 50, opacity: 0, duration: 1, ease: "power3.out", scrollTrigger: { trigger: el, start: "top 85%" }});
+            }
+        });
+    </script>
+</body>
+</html>
