@@ -302,20 +302,26 @@ async def call_tool(name: str, arguments: dict) -> list[types.TextContent]:
 
     elif name == "ghost_status":
         status = browser_manager.get_status()
+        import uuid
+        session_id = str(uuid.uuid4())[:8].upper()
         lines = [
-            "👻 SITE-GHOST ENGINE STATUS",
-            f"CWD: {status['cwd']}",
-            f"Phantom Root: {status['phantom_root']}",
+            "============================================================",
+            f" 👻 SITE-GHOST ENGINE STATUS | SESSION: {session_id}",
+            "============================================================",
+            f"  CWD:      {status['cwd']}",
+            f"  Root:     {status['phantom_root']}",
+            f"  Version:  1.2.0 (Phantom Forge)",
             "",
-            "Work Directories:",
-            f"  📸 Screenshots: {status['directories']['screenshots']}",
-            f"  🎥 Video: {status['directories']['video']}",
-            f"  👁️ Vision: {status['directories']['vision']}",
-            f"  📊 Reports: {status['directories']['reports']}",
-            f"  📂 Clones: {status['directories']['clones']}",
+            "  Work Directories:",
+            f"    📸 Screenshots: {status['directories']['screenshots']}",
+            f"    🎥 Video:       {status['directories']['video']}",
+            f"    👁️ Vision:      {status['directories']['vision']}",
+            f"    📂 Clones:      {status['directories']['clones']}",
             "",
-            f"Active Tab: {status['active_tab'] or 'None'}",
-            f"Open Tabs: {status['tab_count']}"
+            f"  Browser State:",
+            f"    Tabs Open:  {status['tab_count']}",
+            f"    Active Tab: {status['active_tab'] or 'None'}",
+            "============================================================"
         ]
         return [types.TextContent(type="text", text="\n".join(lines))]
 
