@@ -9,6 +9,8 @@
         'A', 'BUTTON', 'INPUT', 'SELECT', 'TEXTAREA', 'SUMMARY', 'DETAILS', 'LABEL'
     ]);
     
+    console.log("%c 👻 Site-Ghost: DOM Mapper Injected ", "background: #FF00FF; color: white; font-weight: bold;");
+    
     // Cleanup old ghost overlays
     document.querySelectorAll('.__ghost_overlay__').forEach(el => el.remove());
 
