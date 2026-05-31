@@ -1,4 +1,8 @@
 import asyncio
+import sys
+
+sys.stdout.reconfigure(encoding='utf-8')
+
 from engine.src.ghost_browser import GhostBrowserManager
 
 async def test_container():

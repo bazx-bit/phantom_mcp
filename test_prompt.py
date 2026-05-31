@@ -2,6 +2,8 @@ import asyncio
 import sys
 import os
 
+sys.stdout.reconfigure(encoding='utf-8')
+
 # Set working directory to the package root so 'engine.src.server' works.
 sys.path.insert(0, os.path.dirname(__file__))
 from engine.src.server import list_prompts, get_prompt, _load_skills

@@ -908,13 +908,53 @@ class GhostBrowserManager:
             # Extract raw DOM with absolutized URLs (KEEP SCRIPTS INTACT)
             stealer_js = """
             (async () => {
-                const toAbs = (url) => { try { return new URL(url, document.baseURI).href; } catch(e) { return url; } };
+                const toAbs = (url) => { 
+                    if (!url) return url;
+                    try { return new URL(url, document.baseURI).href; } catch(e) { return url; } 
+                };
                 let allCSS = '';
                 for (const sheet of Array.from(document.styleSheets)) {
                     try { for (const rule of Array.from(sheet.cssRules)) { allCSS += rule.cssText + '\\n'; } } catch(e) {}
                 }
-                document.querySelectorAll('[src]').forEach(el => el.src = toAbs(el.getAttribute('src')));
-                document.querySelectorAll('[href]').forEach(el => el.href = toAbs(el.getAttribute('href')));
+                
+                // Absolutize src and href attributes
+                document.querySelectorAll('[src]').forEach(el => {
+                    const src = el.getAttribute('src');
+                    if (src) el.src = toAbs(src);
+                });
+                document.querySelectorAll('[href]').forEach(el => {
+                    const href = el.getAttribute('href');
+                    if (href) el.href = toAbs(href);
+                });
+                
+                // Absolutize srcset attributes for responsive images
+                document.querySelectorAll('[srcset]').forEach(el => {
+                    const srcset = el.getAttribute('srcset');
+                    if (srcset) {
+                        const newSrcset = srcset.split(',').map(part => {
+                            const trimmed = part.trim();
+                            const spaceIndex = trimmed.indexOf(' ');
+                            if (spaceIndex === -1) {
+                                return toAbs(trimmed);
+                            }
+                            const url = trimmed.substring(0, spaceIndex);
+                            const descriptor = trimmed.substring(spaceIndex);
+                            return toAbs(url) + descriptor;
+                        }).join(', ');
+                        el.setAttribute('srcset', newSrcset);
+                    }
+                });
+
+                // Absolutize inline style background images
+                document.querySelectorAll('[style*="url("]').forEach(el => {
+                    const style = el.getAttribute('style');
+                    if (style) {
+                        const newStyle = style.replace(/url\\(['"]?([^'")\\)]+)['"]?\\)/g, (match, url) => {
+                            return `url("${toAbs(url)}")`;
+                        });
+                        el.setAttribute('style', newStyle);
+                    }
+                });
                 
                 return {
                     head: document.head.innerHTML,
